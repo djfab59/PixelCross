@@ -24,7 +24,7 @@ const int TRACK_LENGTH = 64; // 32 LEDs sur ligne 4 + 32 LEDs sur ligne 5
 int direction = 1;  // La balle part vers la droite (1) ou la gauche (-1)
 unsigned long timerMouvement = 0; // Pour gérer la vitesse sans bloquer le programme avec delay
 int vitesseJeu = 80; // Temps en ms entre chaque case (plus c'est bas, plus c'est rapide)
-const int vitesseMax = 20; // Vitesse maximale (temps minimum en ms entre chaque case)
+const int vitesseMax = 10; // Vitesse maximale (temps minimum en ms entre chaque case)
 bool enAttenteEngagement = true; // Indique si on attend qu'un joueur engage
 int joueurEngagement = -1; // -1 = Joueur Vert (Gauche), 1 = Joueur Rouge (Droite)
 bool etatPrecedentVert = HIGH; // Mémorise l'état précédent du bouton pour détecter le clic
