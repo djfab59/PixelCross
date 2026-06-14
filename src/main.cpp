@@ -36,8 +36,11 @@ int viesRouge = 3; // Vies du joueur de droite (Rouge)
 bool partieTerminee = false; // Indique si la partie est finie
 int tailleRaquette = 5; // Taille de la zone de frappe (diminue à haute vitesse)
 int compteurEchangesMax = 0; // Compte les échanges à vitesse maximale
-bool pouvoirVert = false; // Indique si le joueur Vert a obtenu son pouvoir (1 max)
-bool pouvoirRouge = false; // Indique si le joueur Rouge a obtenu son pouvoir (1 max)
+int pouvoirVert = 0; // 0=Aucun, 1=Dash, 2=Invisible, 3=Bouclier
+int pouvoirRouge = 0; // 0=Aucun, 1=Dash, 2=Invisible, 3=Bouclier
+int dashRestant = 0; // Nombre de cases restantes pour le déplacement ultra-rapide
+int invisibiliteRestante = 0; // Nombre de cases restantes pour la balle invisible
+bool verrouService = true; // Empêche le service tant que l'adversaire n'a pas déverrouillé
 
 // Variables pour gérer le buzzer de manière non-bloquante
 unsigned long timerBuzzer = 0;
@@ -45,12 +48,30 @@ bool buzzerActif = false;
 bool effetPouvoirActif = false;
 unsigned long debutEffetPouvoir = 0;
 
+// Nouvelles variables pour le bip double (Doulin)
+unsigned int freqBip2 = 0;
+unsigned long dureeBip2 = 0;
+bool attenteBip2 = false;
+
 // Fonction pour déclencher un bip sans le paramètre de durée (qui bug souvent sur ESP32)
 void declencherBip(unsigned int frequence, unsigned long duree) {
   effetPouvoirActif = false; // Stoppe l'effet pouvoir si un bip normal prioritaire doit jouer
+  attenteBip2 = false; // Annule un bip double en attente
   ledcWriteTone(BUZZER_CHANNEL, frequence); // Utilisation de l'API PWM native
   ledcWrite(BUZZER_CHANNEL, 127); // Force le rapport cyclique à 50% (sur 255) pour créer le son
   timerBuzzer = millis() + duree;
+  buzzerActif = true;
+}
+
+// Fonction pour déclencher un son en deux temps
+void declencherBipDouble(unsigned int f1, unsigned int f2, unsigned long d1, unsigned long d2) {
+  effetPouvoirActif = false;
+  freqBip2 = f2;
+  dureeBip2 = d2;
+  attenteBip2 = true;
+  ledcWriteTone(BUZZER_CHANNEL, f1);
+  ledcWrite(BUZZER_CHANNEL, 127);
+  timerBuzzer = millis() + d1;
   buzzerActif = true;
 }
 
@@ -58,6 +79,7 @@ void declencherBip(unsigned int frequence, unsigned long duree) {
 void declencherEffetPouvoir() {
   effetPouvoirActif = true;
   buzzerActif = false; // Stoppe tout bip standard en cours
+  attenteBip2 = false; // Stoppe un bip double en attente
   debutEffetPouvoir = millis();
 }
 
@@ -108,9 +130,17 @@ void setup() {
 void loop() {
   // --- GESTION DU BUZZER (Non-bloquant) ---
   if (buzzerActif && millis() >= timerBuzzer) {
-    ledcWriteTone(BUZZER_CHANNEL, 0); // Stoppe la fréquence PWM
-    ledcWrite(BUZZER_CHANNEL, 0);     // Coupe totalement le courant (0%) pour protéger le transistor
-    buzzerActif = false;
+    if (attenteBip2) {
+      // Déclenche la deuxième partie du son
+      ledcWriteTone(BUZZER_CHANNEL, freqBip2);
+      ledcWrite(BUZZER_CHANNEL, 127);
+      timerBuzzer = millis() + dureeBip2;
+      attenteBip2 = false;
+    } else {
+      ledcWriteTone(BUZZER_CHANNEL, 0); // Stoppe la fréquence PWM
+      ledcWrite(BUZZER_CHANNEL, 0);     // Coupe totalement le courant (0%) pour protéger le transistor
+      buzzerActif = false;
+    }
   }
 
   // --- GESTION DE L'EFFET SONORE DU POUVOIR ---
@@ -166,8 +196,11 @@ void loop() {
       partieTerminee = false;
       viesVert = 3;
       viesRouge = 3;
-      pouvoirVert = false;
-      pouvoirRouge = false;
+      pouvoirVert = 0;
+      pouvoirRouge = 0;
+      dashRestant = 0;
+      invisibiliteRestante = 0;
+      verrouService = true;
       joueurEngagement = -1; // Vert engage la nouvelle partie
       tailleRaquette = 5;
       compteurEchangesMax = 0;
@@ -179,27 +212,84 @@ void loop() {
 
   if (enAttenteEngagement) {
     // Logique d'engagement
-    if (joueurEngagement == -1 && clicVert) {
-      declencherBip(2000, 30); // Bip d'engagement Vert
-      enAttenteEngagement = false;
-      direction = 1; // Le joueur de gauche (vert) engage vers la droite
-      timerMouvement = millis();
-    } 
-    else if (joueurEngagement == 1 && clicRouge) {
-      declencherBip(2000, 30); // Bip d'engagement Rouge
-      enAttenteEngagement = false;
-      direction = -1; // Le joueur de droite (rouge) engage vers la gauche
-      timerMouvement = millis();
+    if (joueurEngagement == -1) {
+      // C'est au Vert de servir. Le Rouge a le verrou.
+      if (clicRouge) verrouService = false; // Le Rouge libère le service
+      
+      if (clicVert) {
+        if (verrouService) {
+          // Erreur : Service bloqué ! Bips graves et clignotement
+          for (int i = 0; i < 3; i++) {
+            ledcWriteTone(BUZZER_CHANNEL, 150); ledcWrite(BUZZER_CHANNEL, 127);
+            leds[XY(28, 8)] = CRGB::Black; FastLED.show(); delay(150);
+            ledcWriteTone(BUZZER_CHANNEL, 0); ledcWrite(BUZZER_CHANNEL, 0);
+            leds[XY(28, 8)] = CRGB::Orange; FastLED.show(); delay(150);
+          }
+        } else {
+          // Service autorisé
+          declencherBip(1000, 50);
+          enAttenteEngagement = false;
+          direction = 1;
+          timerMouvement = millis();
+        }
+      }
+    } else if (joueurEngagement == 1) {
+      // C'est au Rouge de servir. Le Vert a le verrou.
+      if (clicVert) verrouService = false; // Le Vert libère le service
+      
+      if (clicRouge) {
+        if (verrouService) {
+          // Erreur : Service bloqué ! Bips graves et clignotement
+          for (int i = 0; i < 3; i++) {
+            ledcWriteTone(BUZZER_CHANNEL, 150); ledcWrite(BUZZER_CHANNEL, 127);
+            leds[XY(5, 1)] = CRGB::Black; FastLED.show(); delay(150);
+            ledcWriteTone(BUZZER_CHANNEL, 0); ledcWrite(BUZZER_CHANNEL, 0);
+            leds[XY(5, 1)] = CRGB::Orange; FastLED.show(); delay(150);
+          }
+        } else {
+          // Service autorisé
+          declencherBip(1000, 50);
+          enAttenteEngagement = false;
+          direction = -1;
+          timerMouvement = millis();
+        }
+      }
     }
   } else {
     // 2. Logique de frappe (Renvoi)
     // Si la balle se dirige vers la GAUCHE (c'est au Vert de jouer)
     if (direction == -1 && clicVert) {
-      declencherBip(2000, 30); // Bip de renvoi (ou de faute) Vert
-      if (posX <= tailleRaquette) {
-        // Frappe parfaite sur la toute dernière LED disponible !
-        if (posX == 1) pouvoirVert = true; 
-        
+      bool frappeValide = (posX <= tailleRaquette);
+      bool pouvoirObtenu = false;
+      bool pouvoirDetruit = false;
+
+      if (frappeValide) {
+        if (posX == 1) pouvoirObtenu = true; // Permet de remplacer son pouvoir si on en a déjà un
+        if (posX == tailleRaquette && pouvoirRouge > 0) pouvoirDetruit = true;
+      }
+
+      // Choix du son de renvoi
+      // On anticipe la prochaine vitesse/difficulté pour que le son monte dès le premier renvoi
+      int vitesseFuture = vitesseJeu;
+      int compteurFuture = compteurEchangesMax;
+      if (frappeValide) {
+        if (vitesseFuture > vitesseMax) vitesseFuture -= 5;
+        else compteurFuture++; // Si on est à vitesse max, on incrémente la difficulté infinie
+      }
+      // Le son augmente de 50 Hz à chaque accélération ou échange à vitesse max
+      unsigned int freqRebond = 1000 + (((80 - vitesseFuture) / 5) + compteurFuture) * 50;
+      if (pouvoirDetruit) {
+        declencherBipDouble(2500, 1500, 60, 80); // Reverse doulin (Aigu -> Grave)
+      } else if (pouvoirObtenu) {
+        declencherBipDouble(1500, 2500, 60, 80); // Doulin (Grave -> Aigu)
+      } else {
+        declencherBip(freqRebond, 30); // Bip classique normal ou faute
+      }
+
+      if (frappeValide) {
+        if (pouvoirObtenu) pouvoirVert = random(1, 4); // Aléatoire : 1(Dash), 2(Invisible), 3(Bouclier)
+        if (pouvoirDetruit) pouvoirRouge = 0;
+
         direction = 1; // Renvoi valide vers la droite
         if (vitesseJeu > vitesseMax) {
           vitesseJeu -= 5; // On accélère la balle à chaque échange !
@@ -220,11 +310,37 @@ void loop() {
     
     // Si la balle se dirige vers la DROITE (c'est au Rouge de jouer)
     if (direction == 1 && clicRouge) {
-      declencherBip(2000, 30); // Bip de renvoi (ou de faute) Rouge
-      if (posX >= (TRACK_LENGTH - tailleRaquette + 1)) {
-        // Frappe parfaite sur la toute dernière LED disponible !
-        if (posX == TRACK_LENGTH) pouvoirRouge = true; 
-         
+      bool frappeValide = (posX >= (TRACK_LENGTH - tailleRaquette + 1));
+      bool pouvoirObtenu = false;
+      bool pouvoirDetruit = false;
+
+      if (frappeValide) {
+        if (posX == TRACK_LENGTH) pouvoirObtenu = true; // Permet de remplacer son pouvoir si on en a déjà un
+        if (posX == (TRACK_LENGTH - tailleRaquette + 1) && pouvoirVert > 0) pouvoirDetruit = true;
+      }
+
+      // Choix du son de renvoi
+      // On anticipe la prochaine vitesse/difficulté pour que le son monte dès le premier renvoi
+      int vitesseFuture = vitesseJeu;
+      int compteurFuture = compteurEchangesMax;
+      if (frappeValide) {
+        if (vitesseFuture > vitesseMax) vitesseFuture -= 5;
+        else compteurFuture++; // Si on est à vitesse max, on incrémente la difficulté infinie
+      }
+      // Le son augmente de 50 Hz à chaque accélération ou échange à vitesse max
+      unsigned int freqRebond = 1000 + (((80 - vitesseFuture) / 5) + compteurFuture) * 50;
+      if (pouvoirDetruit) {
+        declencherBipDouble(2500, 1500, 60, 80); // Reverse doulin (Aigu -> Grave)
+      } else if (pouvoirObtenu) {
+        declencherBipDouble(1500, 2500, 60, 80); // Doulin (Grave -> Aigu)
+      } else {
+        declencherBip(freqRebond, 30); // Bip classique normal ou faute
+      }
+
+      if (frappeValide) {
+        if (pouvoirObtenu) pouvoirRouge = random(1, 4); // Aléatoire : 1(Dash), 2(Invisible), 3(Bouclier)
+        if (pouvoirDetruit) pouvoirVert = 0;
+
         direction = -1; // Renvoi valide vers la gauche
         if (vitesseJeu > vitesseMax) {
           vitesseJeu -= 5;
@@ -243,29 +359,50 @@ void loop() {
       clicRouge = false;
     }
 
-    // --- UTILISATION DES POUVOIRS (Frappe Smash : +15 LEDs et Explosion) ---
-    // Joueur Vert : La balle s'éloigne (direction == 1), on est sur la ligne 4 (posX <= 32)
-    if (direction == 1 && clicVert && pouvoirVert && posX <= 32) {
-      pouvoirVert = false;
-      posX += 15; // Bond en avant
+    // --- UTILISATION DES POUVOIRS ACTIFS (Dash & Invisible) ---
+    // Joueur Vert : La balle s'éloigne, ligne 4. Zone de protection anti-déclenchement (posX > 5)
+    if (direction == 1 && clicVert && pouvoirVert > 0 && pouvoirVert != 3 && posX > 5 && posX <= 32) {
+      if (pouvoirVert == 1) dashRestant = 15; // Pouvoir 1 : Dash
+      else if (pouvoirVert == 2) invisibiliteRestante = 16; // Pouvoir 2 : Invisible
+      pouvoirVert = 0;
       declencherEffetPouvoir(); // Déclenche le sweep Grave -> Aigu -> Grave
     }
 
-    // Joueur Rouge : La balle s'éloigne (direction == -1), on est sur la ligne 5 (posX >= 33)
-    if (direction == -1 && clicRouge && pouvoirRouge && posX >= 33) {
-      pouvoirRouge = false;
-      posX -= 15; // Bond en avant
+    // Joueur Rouge : La balle s'éloigne, ligne 5. Zone de protection anti-déclenchement (posX < 60)
+    if (direction == -1 && clicRouge && pouvoirRouge > 0 && pouvoirRouge != 3 && posX < 60 && posX >= 33) {
+      if (pouvoirRouge == 1) dashRestant = 15; // Pouvoir 1 : Dash
+      else if (pouvoirRouge == 2) invisibiliteRestante = 16; // Pouvoir 2 : Invisible
+      pouvoirRouge = 0;
       declencherEffetPouvoir(); // Déclenche le sweep Grave -> Aigu -> Grave
     }
 
     // 3. Déplacement de la balle géré par le temps (millis)
-    if (millis() - timerMouvement > vitesseJeu) {
+    unsigned long delaiMouvement = (dashRestant > 0) ? 5 : vitesseJeu;
+    if (millis() - timerMouvement > delaiMouvement) {
       timerMouvement = millis();
       posX += direction;
+      if (dashRestant > 0) dashRestant--;
+      if (invisibiliteRestante > 0) invisibiliteRestante--;
 
       // Si la balle sort complètement de l'écran : un joueur a raté
       if (posX < 1 || posX > TRACK_LENGTH) {
         bool vertARate = (posX < 1); // Si elle sort à gauche, c'est Vert qui a raté
+        
+        // Vérification du Bouclier (Pouvoir passif n°3)
+        if (vertARate && pouvoirVert == 3) {
+          pouvoirVert = 0; // Le bouclier est consommé
+          posX = 1; // La balle rebondit
+          direction = 1; // Repart vers l'adversaire
+          declencherEffetPouvoir(); // Son spécial de déclenchement
+        } 
+        else if (!vertARate && pouvoirRouge == 3) {
+          pouvoirRouge = 0; // Le bouclier est consommé
+          posX = TRACK_LENGTH; // La balle rebondit
+          direction = -1; // Repart vers l'adversaire
+          declencherEffetPouvoir(); // Son spécial de déclenchement
+        } 
+        else {
+          // --- PERTE DE LA MANCHE ---
         CRGB couleurPoint = vertARate ? CRGB::Red : CRGB::Green; 
         
         // Le perdant obtient l'engagement à la prochaine manche
@@ -351,8 +488,12 @@ void loop() {
         vitesseJeu = 80; 
         tailleRaquette = 5; // On réinitialise la taille des raquettes
         compteurEchangesMax = 0; // On réinitialise le compteur
-        pouvoirVert = false; // Les pouvoirs sont perdus à chaque fin de manche
-        pouvoirRouge = false;
+        pouvoirVert = 0; // Les pouvoirs sont perdus à chaque fin de manche
+        pouvoirRouge = 0;
+        dashRestant = 0; // On stoppe tout dash en cours
+        invisibiliteRestante = 0; // On annule l'invisibilité
+        verrouService = true; // On remet le verrou pour le prochain service
+        }
       }
     }
   }
@@ -370,9 +511,20 @@ void loop() {
   for (int i = 0; i < viesVert; i++) leds[XY(1 + i, 1)] = couleurVie; // Vies gauche (Ligne du haut)
   for (int i = 0; i < viesRouge; i++) leds[XY(32 - i, 8)] = couleurVie; // Vies droite (Ligne du bas)
 
-  // Affichage des pouvoirs (LED bleue en dessous des vies)
-  if (pouvoirVert) leds[XY(1, 2)] = CRGB::Blue;
-  if (pouvoirRouge) leds[XY(32, 7)] = CRGB::Blue;
+  // Affichage des pouvoirs (LED bleue en dessous des vies selon le type)
+  if (pouvoirVert == 1) leds[XY(1, 2)] = CRGB::Blue; // Dash
+  else if (pouvoirVert == 2) leds[XY(2, 2)] = CRGB::Blue; // Invisible
+  else if (pouvoirVert == 3) leds[XY(3, 2)] = CRGB::Blue; // Bouclier
+
+  if (pouvoirRouge == 1) leds[XY(32, 7)] = CRGB::Blue; // Dash
+  else if (pouvoirRouge == 2) leds[XY(31, 7)] = CRGB::Blue; // Invisible
+  else if (pouvoirRouge == 3) leds[XY(30, 7)] = CRGB::Blue; // Bouclier
+
+  // Affichage du verrou de service (en Orange) si actif
+  if (enAttenteEngagement && verrouService) {
+    if (joueurEngagement == -1) leds[XY(28, 8)] = CRGB::Orange; // Verrou du Rouge
+    else leds[XY(5, 1)] = CRGB::Orange; // Verrou du Vert
+  }
 
   // Dessin de la balle
   if (posX >= 1 && posX <= TRACK_LENGTH) {
@@ -384,8 +536,12 @@ void loop() {
       // La balle prend la couleur du joueur qui doit engager
       leds[XY(balleX, balleY)] = (joueurEngagement == -1) ? CRGB::Green : CRGB::Red;
     } else {
-      // La balle devient jaune en cours d'échange
-      leds[XY(balleX, balleY)] = CRGB::Yellow;
+      if (invisibiliteRestante > 0) {
+        // Balle invisible : on ne dessine rien !
+      } else {
+        // La balle devient jaune en cours d'échange
+        leds[XY(balleX, balleY)] = CRGB::Yellow;
+      }
     }
   }
 
