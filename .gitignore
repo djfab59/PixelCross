@@ -12,7 +12,7 @@
 .vscode/compile_commands.json
 
 # Fichiers systèmes (macOS / Windows)
-#.DS_Store
-#._.DS_Store
+.DS_Store
+._.DS_Store
 Thumbs.db
 desktop.ini
