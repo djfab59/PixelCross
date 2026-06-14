@@ -7,6 +7,7 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Affichage** : Matrice LED WS2812B 8x32 (256 LEDs au total).
 - **Alimentation** : 5V 3A externe. **Règle stricte** : Le logiciel (FastLED) doit toujours limiter la consommation à 2500mA maximum pour des raisons de sécurité.
 - **Boutons** : GPIO 0 (Vert/Gauche), GPIO 1 (Rouge/Droit).
+- **Audio** : Buzzer passif sur GPIO 3 (contrôlé via PWM matériel natif `ledc` pour être non-bloquant).
 
 ## Architecture et Choix Techniques
 - **Framework** : Arduino (via PlatformIO).
@@ -25,8 +26,10 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Accélération** : La vitesse de la balle augmente (le délai en ms diminue) à chaque échange réussi.
 - **Mort subite** : Une fois la vitesse maximale atteinte, la taille de la zone de renvoi (raquette) diminue toutes les deux frappes.
 - **Système de Fautes** : Appuyer sur le bouton avant que la balle ne soit dans la zone de la raquette entraîne une perte immédiate de la manche (anti-spam).
+- **Verrou de Service** : Après un point, le joueur en défense doit déverrouiller l'engagement (LED orange) en appuyant sur son bouton avant que le serveur puisse engager.
+- **Pouvoirs Aléatoires** : Frapper sur la dernière LED octroie un pouvoir au hasard (1=Dash, 2=Invisibilité, 3=Bouclier passif). Frapper sur la première LED annule le pouvoir adverse.
+- **Sons dynamiques** : Le pitch du buzzer monte de +50Hz à chaque accélération de la balle.
 
 ## Idées et Améliorations futures
 - Ajout d'une animation d'attente (Idle) lorsque le jeu n'est pas utilisé.
-- Implémentation d'effets sonores via un Buzzer (bips lors des rebonds et sons de fin de partie).
 - Variations de couleurs dynamiques en fonction de la vitesse de la balle.
