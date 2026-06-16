@@ -6,8 +6,8 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Microcontrôleur** : ESP32-C3 SuperMini.
 - **Affichage** : Matrice LED WS2812B 8x32 (256 LEDs au total).
 - **Alimentation** : 5V 3A externe. **Règle stricte** : Le logiciel (FastLED) doit toujours limiter la consommation à 2500mA maximum pour des raisons de sécurité.
-- **Boutons** : GPIO 0 (Vert/Gauche), GPIO 1 (Rouge/Droit).
-- **Audio** : Buzzer passif sur GPIO 3 (contrôlé via PWM matériel natif `ledc` pour être non-bloquant).
+- **Boutons** : GPIO 0 (Vert/Gauche), GPIO 5 (Rouge/Droit).
+- **Audio** : Buzzer passif sur GPIO 4 (contrôlé via PWM matériel natif `ledc` pour être non-bloquant).
 
 ## Architecture et Choix Techniques
 - **Framework** : Arduino (via PlatformIO).

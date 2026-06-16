@@ -32,12 +32,12 @@ PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, joua
 | :--- | :--- | :--- |
 | **Matrice LED** | `5V` (VCC) | 5V Alimentation Externe |
 | | `GND` | GND (Alim) + GND (ESP32) |
-| | `DIN` (Data) | GPIO **2** |
+| | `DIN` (Data) | GPIO **3** |
 | **Bouton Vert (Gauche)** | Patte 1 | GPIO **0** |
 | | Patte 2 | GND |
-| **Bouton Rouge (Droit)** | Patte 1 | GPIO **1** |
+| **Bouton Rouge (Droit)** | Patte 1 | GPIO **5** |
 | | Patte 2 | GND |
-| **Buzzer** | Signal | GPIO **3** (via transistor) |
+| **Buzzer** | Signal | GPIO **4** (via transistor) |
 
 *Note : Les boutons utilisent le mode `INPUT_PULLUP` interne de l'ESP32, il n'y a donc pas besoin de résistances externes.*
 

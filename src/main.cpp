@@ -2,12 +2,12 @@
 #include <FastLED.h>
 
 // On utilise le GPIO 2 pour envoyer les données au panneau LED
-#define LED_DATA_PIN 2
+#define LED_DATA_PIN 3
 
 // Définition des broches pour les boutons
 #define BTN_GREEN_PIN 0
-#define BTN_RED_PIN 1
-#define BUZZER_PIN 3 // Changement de broche pour éviter le conflit JTAG de la broche 4
+#define BTN_RED_PIN 5
+#define BUZZER_PIN 4 // Changement de broche pour éviter le conflit JTAG de la broche 4
 #define BUZZER_CHANNEL 0 // Canal PWM matériel utilisé par l'ESP32
 
 // Ton bandeau fait 8x32, soit 256 LEDs au total
