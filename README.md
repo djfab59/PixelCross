@@ -8,7 +8,7 @@ PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, joua
 - **Physique dynamique :** La balle accélère à chaque échange réussi.
 - **Mécanique de Faute (Anti-Spam) :** Appuyer avant que la balle n'entre dans la zone de votre raquette vous fait instantanément perdre la manche !
 - **Mode "Mort Subite" :** Une fois la vitesse maximale de la balle atteinte, la taille des raquettes se réduit toutes les deux frappes (passant de 5 LEDs à 2 LEDs) pour forcer l'erreur.
-- **Vies et Score :** 3 vies par joueur, affichées en rose (en haut pour le joueur gauche, en bas pour le joueur droit).
+- **Vies et Mode Tournoi :** 3 vies par joueur affichées sur la matrice (en rose). Les afficheurs 7 segments externes agissent comme un compteur global de victoires !
 - **Verrou de Sécurité :** L'engagement est bloqué tant que le joueur en défense n'a pas signalé qu'il est prêt.
 - **Pouvoirs Aléatoires :** Frappez la balle sur la dernière LED pour obtenir un "Dash", une "Invisibilité" ou un "Bouclier" !
 - **Animations :** Clignotement de point, balayage coloré (wipe) pour le grand gagnant de la partie.
@@ -33,10 +33,21 @@ PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, joua
 | **Matrice LED** | `5V` (VCC) | 5V Alimentation Externe |
 | | `GND` | GND (Alim) + GND (ESP32) |
 | | `DIN` (Data) | GPIO **3** |
-| **Bouton Vert (Gauche)** | Patte 1 | GPIO **0** |
+| **Bouton Vert (Action/Valid.)**| Patte 1 | GPIO **0** |
 | | Patte 2 | GND |
-| **Bouton Rouge (Droit)** | Patte 1 | GPIO **5** |
+| **Bouton Vert 1 (Gauche)** | Patte 1 | GPIO **1** |
 | | Patte 2 | GND |
+| **Bouton Vert 2 (Droite)** | Patte 1 | GPIO **2** |
+| | Patte 2 | GND |
+| **Bouton Rouge (Action)** | Patte 1 | GPIO **5** |
+| | Patte 2 | GND |
+| **Bouton Rouge 1 (Futur)** | Patte 1 | GPIO **6** |
+| | Patte 2 | GND |
+| **Bouton Rouge 2 (Futur)** | Patte 1 | GPIO **7** |
+| | Patte 2 | GND |
+| **Afficheurs Score** | `SDI` | GPIO **8** |
+| (2x Modules 7 Segments)| `SCLK`| GPIO **9** |
+| via 74HC595 en série | `LOAD`| GPIO **10** |
 | **Buzzer** | Signal | GPIO **4** (via transistor) |
 
 *Note : Les boutons utilisent le mode `INPUT_PULLUP` interne de l'ESP32, il n'y a donc pas besoin de résistances externes.*
@@ -56,8 +67,10 @@ La librairie FastLED sera téléchargée automatiquement par PlatformIO selon la
 
 ## 🎮 Comment Jouer ?
 
+**Navigation / Retour au menu** : À tout moment (dans le menu ou en plein jeu), appuyez simultanément sur **Vert 1** et **Vert 2** pour revenir au menu principal (cela réinitialise les scores du tournoi).
+
 **1. Démarrage et Engagement**
-* Le joueur qui vient de gagner le point obtient l'engagement. La balle prend sa couleur.
+- Le joueur qui vient de perdre le point (ou la partie précédente) obtient l'avantage de l'engagement. La balle prend sa couleur.
 * Le joueur en défense possède un **verrou (LED Orange)**. Il doit appuyer sur son bouton pour débloquer le service.
 * L'attaquant appuie ensuite sur son bouton pour engager. S'il le fait trop tôt, une erreur sonore retentit !
 
@@ -69,7 +82,6 @@ La librairie FastLED sera téléchargée automatiquement par PlatformIO selon la
 **3. Fautes et Pénalités**
 * Taper dans le vide = Manche perdue (perte d'une vie).
 * Rater la balle = Manche perdue.
-* Le perdant obtient l'engagement pour la manche suivante (la balle prend sa couleur).
 
 **4. Pouvoirs (Nouveau !)**
 * Si vous frappez la balle exactement sur la **toute dernière LED** de votre camp, vous obtenez un pouvoir (LED Bleue).
@@ -84,6 +96,7 @@ La librairie FastLED sera téléchargée automatiquement par PlatformIO selon la
 **6. Fin de partie**
 * Le premier joueur qui perd ses 3 vies (les points roses) perd la partie.
 * Une grande animation aux couleurs du vainqueur balaie l'écran.
+* Le compteur de victoires (7 segments) du vainqueur augmente de 1.
 * Appuyez sur n'importe quel bouton pour relancer une toute nouvelle partie !
 
 ---

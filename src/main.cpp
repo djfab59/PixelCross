@@ -1,46 +1,20 @@
 #include <Arduino.h>
 #include <FastLED.h>
-
-// On utilise le GPIO 2 pour envoyer les données au panneau LED
-#define LED_DATA_PIN 3
-
-// Définition des broches pour les boutons
-#define BTN_GREEN_PIN 0
-#define BTN_RED_PIN 5
-#define BUZZER_PIN 4 // Changement de broche pour éviter le conflit JTAG de la broche 4
-#define BUZZER_CHANNEL 0 // Canal PWM matériel utilisé par l'ESP32
-
-// Ton bandeau fait 8x32, soit 256 LEDs au total
-#define MATRIX_WIDTH 32
-#define MATRIX_HEIGHT 8
-#define NUM_LEDS (MATRIX_WIDTH * MATRIX_HEIGHT)
+#include "shared.h"
+#include "pong.h"
+#include "settings.h"
+#include "test.h"
 
 // Le tableau qui va contenir l'état de chaque LED
 CRGB leds[NUM_LEDS];
+AppState currentState = STATE_MENU; // L'application démarre sur le Menu
 
-// Position sur notre circuit de 64 LEDs (Ligne 4 puis Ligne 5)
-int posX = 16;      // On démarre au milieu de la ligne 4 (Vert engage en premier)
-const int TRACK_LENGTH = 64; // 32 LEDs sur ligne 4 + 32 LEDs sur ligne 5
-
-// Variables pour le jeu PONG
-int direction = 1;  // La balle part vers la droite (1) ou la gauche (-1)
-unsigned long timerMouvement = 0; // Pour gérer la vitesse sans bloquer le programme avec delay
-int vitesseJeu = 80; // Temps en ms entre chaque case (plus c'est bas, plus c'est rapide)
-const int vitesseMax = 10; // Vitesse maximale (temps minimum en ms entre chaque case)
-bool enAttenteEngagement = true; // Indique si on attend qu'un joueur engage
-int joueurEngagement = -1; // -1 = Joueur Vert (Gauche), 1 = Joueur Rouge (Droite)
-bool etatPrecedentVert = HIGH; // Mémorise l'état précédent du bouton pour détecter le clic
-bool etatPrecedentRouge = HIGH;
-int viesVert = 3; // Vies du joueur de gauche (Vert)
-int viesRouge = 3; // Vies du joueur de droite (Rouge)
-bool partieTerminee = false; // Indique si la partie est finie
-int tailleRaquette = 5; // Taille de la zone de frappe (diminue à haute vitesse)
-int compteurEchangesMax = 0; // Compte les échanges à vitesse maximale
-int pouvoirVert = 0; // 0=Aucun, 1=Dash, 2=Invisible, 3=Bouclier
-int pouvoirRouge = 0; // 0=Aucun, 1=Dash, 2=Invisible, 3=Bouclier
-int dashRestant = 0; // Nombre de cases restantes pour le déplacement ultra-rapide
-int invisibiliteRestante = 0; // Nombre de cases restantes pour la balle invisible
-bool verrouService = true; // Empêche le service tant que l'adversaire n'a pas déverrouillé
+// Variables pour le système de Menu
+int menuIndex = 0;
+const int NUM_MENU_ITEMS = 3; // Pong, Réglages, Test
+bool prevGreen1 = HIGH;
+bool prevGreen2 = HIGH;
+bool prevGreen = HIGH;
 
 // Variables pour gérer le buzzer de manière non-bloquante
 unsigned long timerBuzzer = 0;
@@ -102,13 +76,151 @@ uint16_t XY(uint8_t x, uint8_t y) {
   return i;
 }
 
+// --- POLICE ET AFFICHAGE TEXTE ---
+bool invertText = false; // Permet d'écrire à l'envers pour le joueur 2
+// Mini-police de caractères 3x5 (A-Z, 0-9) optimisée bit par bit
+const uint8_t police3x5[36][5] = {
+  {0b010, 0b101, 0b111, 0b101, 0b101}, // A
+  {0b110, 0b101, 0b110, 0b101, 0b110}, // B
+  {0b011, 0b100, 0b100, 0b100, 0b011}, // C
+  {0b110, 0b101, 0b101, 0b101, 0b110}, // D
+  {0b111, 0b100, 0b110, 0b100, 0b111}, // E
+  {0b111, 0b100, 0b110, 0b100, 0b100}, // F
+  {0b011, 0b100, 0b101, 0b101, 0b011}, // G
+  {0b101, 0b101, 0b111, 0b101, 0b101}, // H
+  {0b111, 0b010, 0b010, 0b010, 0b111}, // I
+  {0b001, 0b001, 0b001, 0b101, 0b011}, // J
+  {0b101, 0b110, 0b100, 0b110, 0b101}, // K
+  {0b100, 0b100, 0b100, 0b100, 0b111}, // L
+  {0b101, 0b111, 0b111, 0b101, 0b101}, // M
+  {0b110, 0b101, 0b101, 0b101, 0b101}, // N
+  {0b010, 0b101, 0b101, 0b101, 0b010}, // O
+  {0b110, 0b101, 0b110, 0b100, 0b100}, // P
+  {0b010, 0b101, 0b101, 0b110, 0b011}, // Q
+  {0b110, 0b101, 0b110, 0b101, 0b101}, // R
+  {0b011, 0b100, 0b010, 0b001, 0b110}, // S
+  {0b111, 0b010, 0b010, 0b010, 0b010}, // T
+  {0b101, 0b101, 0b101, 0b101, 0b011}, // U
+  {0b101, 0b101, 0b101, 0b101, 0b010}, // V
+  {0b101, 0b101, 0b101, 0b111, 0b101}, // W
+  {0b101, 0b101, 0b010, 0b101, 0b101}, // X
+  {0b101, 0b101, 0b010, 0b010, 0b010}, // Y
+  {0b111, 0b001, 0b010, 0b100, 0b111}, // Z
+  {0b111, 0b101, 0b101, 0b101, 0b111}, // 0
+  {0b010, 0b110, 0b010, 0b010, 0b111}, // 1
+  {0b111, 0b001, 0b111, 0b100, 0b111}, // 2
+  {0b111, 0b001, 0b111, 0b001, 0b111}, // 3
+  {0b101, 0b101, 0b111, 0b001, 0b001}, // 4
+  {0b111, 0b100, 0b111, 0b001, 0b111}, // 5
+  {0b111, 0b100, 0b111, 0b101, 0b111}, // 6
+  {0b111, 0b001, 0b010, 0b100, 0b100}, // 7
+  {0b111, 0b101, 0b111, 0b101, 0b111}, // 8
+  {0b111, 0b101, 0b111, 0b001, 0b111}  // 9
+};
+
+// Dessine un caractère à des coordonnées (x,y)
+void drawChar(char c, int x, int y, CRGB color) {
+  int idx = -1;
+  if (c >= 'A' && c <= 'Z') idx = c - 'A';
+  else if (c >= '0' && c <= '9') idx = 26 + (c - '0');
+  if (idx == -1) return;
+
+  for (int row = 0; row < 5; row++) {
+    uint8_t line = police3x5[idx][row];
+    for (int col = 0; col < 3; col++) {
+      if (line & (1 << (2 - col))) {
+        int px = x + col;
+        int py = y + row;
+        if (px >= 1 && px <= MATRIX_WIDTH && py >= 1 && py <= MATRIX_HEIGHT) {
+          if (invertText) {
+            leds[XY(MATRIX_WIDTH - px + 1, MATRIX_HEIGHT - py + 1)] = color;
+          } else {
+            leds[XY(px, py)] = color;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Dessine un mot
+void drawString(const char* str, int x, int y, CRGB color) {
+  int i = 0;
+  while (str[i] != '\0') {
+    if (str[i] == ' ') x += 2; // Espace plus fin
+    else { drawChar(str[i], x, y, color); x += 4; } // 3px lettre + 1px espacement
+    i++;
+  }
+}
+
+// Calcule la largeur du mot et le centre parfaitement sur l'écran
+void drawCenteredString(const char* str, int y, CRGB color) {
+  int len = 0, i = 0;
+  while(str[i] != '\0') { len++; i++; }
+  int width = len * 4 - 1;
+  int x = (MATRIX_WIDTH - width) / 2 + 1;
+  drawString(str, x, y, color);
+}
+
+// --- GESTION DES AFFICHEURS 7 SEGMENTS (74HC595) ---
+// Dictionnaire standard pour allumer les segments (A à G) des chiffres 0 à 9
+// Les afficheurs sont à "anode commune", la logique est donc inversée (0 = Allumé, 1 = Eteint)
+const uint8_t table7Seg[11] = {
+  0b11000000, // 0
+  0b11111001, // 1
+  0b10100100, // 2
+  0b10110000, // 3
+  0b10011001, // 4
+  0b10010010, // 5
+  0b10000010, // 6
+  0b11111000, // 7
+  0b10000000, // 8
+  0b10010000, // 9
+  0b11111111  // 10 (Espace / Eteint)
+};
+
+void afficherScore7Seg(int scoreVert, int scoreRouge) {
+  digitalWrite(PIN_LOAD, LOW);
+  
+  // Envoi dynamique selon le nombre de digits par module (DIGITS_PER_MODULE)
+  // Ordre : Joueur Rouge d'abord (car c'est le dernier dans la chaîne Daisy Chain)
+  int divRouge = 1;
+  for (int i = 0; i < DIGITS_PER_MODULE; i++) {
+    uint8_t digit = (scoreRouge >= 0) ? table7Seg[(scoreRouge / divRouge) % 10] : table7Seg[10];
+    shiftOut(PIN_SDI, PIN_SCLK, MSBFIRST, digit);
+    divRouge *= 10;
+  }
+
+  // Ordre : Joueur Vert ensuite
+  int divVert = 1;
+  for (int i = 0; i < DIGITS_PER_MODULE; i++) {
+    uint8_t digit = (scoreVert >= 0) ? table7Seg[(scoreVert / divVert) % 10] : table7Seg[10];
+    shiftOut(PIN_SDI, PIN_SCLK, MSBFIRST, digit);
+    divVert *= 10;
+  }
+
+  digitalWrite(PIN_LOAD, HIGH);
+}
+
 void setup() {
   Serial.begin(115200);
   
   // Configuration des boutons avec résistance interne de tirage (PULLUP)
   pinMode(BTN_GREEN_PIN, INPUT_PULLUP);
+  pinMode(BTN_GREEN1_PIN, INPUT_PULLUP);
+  pinMode(BTN_GREEN2_PIN, INPUT_PULLUP);
   pinMode(BTN_RED_PIN, INPUT_PULLUP);
+  pinMode(BTN_RED1_PIN, INPUT_PULLUP);
+  pinMode(BTN_RED2_PIN, INPUT_PULLUP);
   pinMode(BUZZER_PIN, OUTPUT);
+
+  // Configuration des broches pour les afficheurs 7 segments
+  pinMode(PIN_SDI, OUTPUT);
+  pinMode(PIN_SCLK, OUTPUT);
+  pinMode(PIN_LOAD, OUTPUT);
+  
+  // Test de l'afficheur (tout éteint au démarrage sur le menu)
+  afficherScore7Seg(-1, -1);
 
   // Configuration native du PWM de l'ESP32 (Canal 0, 2000Hz, Résolution 8 bits)
   ledcSetup(BUZZER_CHANNEL, 2000, 8);
@@ -127,8 +239,55 @@ void setup() {
   Serial.println("Démarrage du test avec l'alimentation externe de 3A !");
 }
 
-void loop() {
-  // --- GESTION DU BUZZER (Non-bloquant) ---
+void drawMenu() {
+  FastLED.clear();
+  if (menuIndex == 0) {
+    drawCenteredString("PONG", 2, CRGB::Green);
+  } else if (menuIndex == 1) {
+    drawCenteredString("REGLAGE", 2, CRGB::Green);
+  } else if (menuIndex == 2) {
+    drawCenteredString("TEST", 2, CRGB::Green);
+  }
+  FastLED.show();
+}
+
+void loopMenu() {
+  bool actGreen1 = digitalRead(BTN_GREEN1_PIN);
+  bool actGreen2 = digitalRead(BTN_GREEN2_PIN);
+  bool actGreen = digitalRead(BTN_GREEN_PIN);
+
+  if (actGreen1 == LOW && prevGreen1 == HIGH) {
+    menuIndex--;
+    if (menuIndex < 0) menuIndex = NUM_MENU_ITEMS - 1;
+    declencherBip(500, 30);
+  }
+  if (actGreen2 == LOW && prevGreen2 == HIGH) {
+    menuIndex++;
+    if (menuIndex >= NUM_MENU_ITEMS) menuIndex = 0;
+    declencherBip(600, 30);
+  }
+  if (actGreen == LOW && prevGreen == HIGH) {
+    declencherBip(1000, 100);
+    if (menuIndex == 0) {
+      initPong();
+      currentState = STATE_PONG;
+    } else if (menuIndex == 1) {
+      initSettings();
+      currentState = STATE_SETTINGS;
+    } else if (menuIndex == 2) {
+      initTest();
+      currentState = STATE_TEST;
+    }
+  }
+
+  prevGreen1 = actGreen1;
+  prevGreen2 = actGreen2;
+  prevGreen = actGreen;
+
+  drawMenu();
+}
+
+void gererBuzzer() {
   if (buzzerActif && millis() >= timerBuzzer) {
     if (attenteBip2) {
       // Déclenche la deuxième partie du son
@@ -165,385 +324,18 @@ void loop() {
       ledcWrite(BUZZER_CHANNEL, 0);
     }
   }
+}
 
-  // 1. Lecture ultra-rapide des boutons (sans bloquer avec delay)
-  bool etatActuelVert = digitalRead(BTN_GREEN_PIN);
-  bool etatActuelRouge = digitalRead(BTN_RED_PIN);
+void loop() {
+  gererBuzzer(); // Le buzzer tourne en tâche de fond quoiqu'il arrive
 
-  // Détection du front descendant (moment précis de l'appui) pour éviter la triche du bouton maintenu
-  bool clicVert = (etatActuelVert == LOW && etatPrecedentVert == HIGH);
-  bool clicRouge = (etatActuelRouge == LOW && etatPrecedentRouge == HIGH);
-
-  etatPrecedentVert = etatActuelVert;
-  etatPrecedentRouge = etatActuelRouge;
-
-  // --- GESTION DE LA FIN DE PARTIE ---
-  if (partieTerminee) {
-    CRGB couleurGagnant = (viesVert <= 0) ? CRGB::Red : CRGB::Green;
-    CRGB couleurDouce = (viesVert <= 0) ? CRGB(40, 0, 0) : CRGB(0, 40, 0); // Couleur assombrie
-    
-    // Clignotement doux de l'écran en attendant la nouvelle partie
-    if (millis() % 1000 < 500) {
-      for (int i = 0; i < NUM_LEDS; i++) leds[i] = couleurDouce;
-    } else {
-      FastLED.clear();
-    }
-    FastLED.show();
-
-    // Si un joueur appuie, on relance une partie à 0
-    if (clicVert || clicRouge) {
-      declencherBip(2000, 30); // Bip de redémarrage plus aigu (et plus fort physiquement)
-      partieTerminee = false;
-      viesVert = 3;
-      viesRouge = 3;
-      pouvoirVert = 0;
-      pouvoirRouge = 0;
-      dashRestant = 0;
-      invisibiliteRestante = 0;
-      verrouService = true;
-      joueurEngagement = -1; // Vert engage la nouvelle partie
-      tailleRaquette = 5;
-      compteurEchangesMax = 0;
-      posX = 16; // Vert commence au milieu de sa ligne
-      enAttenteEngagement = true;
-    }
-    return; // On stoppe l'exécution de la boucle ici tant que le jeu est fini
+  if (currentState == STATE_MENU) {
+    loopMenu();
+  } else if (currentState == STATE_PONG) {
+    loopPong();
+  } else if (currentState == STATE_SETTINGS) {
+    loopSettings();
+  } else if (currentState == STATE_TEST) {
+    loopTest();
   }
-
-  if (enAttenteEngagement) {
-    // Logique d'engagement
-    if (joueurEngagement == -1) {
-      // C'est au Vert de servir. Le Rouge a le verrou.
-      if (clicRouge) verrouService = false; // Le Rouge libère le service
-      
-      if (clicVert) {
-        if (verrouService) {
-          // Erreur : Service bloqué ! Bips graves et clignotement
-          for (int i = 0; i < 3; i++) {
-            ledcWriteTone(BUZZER_CHANNEL, 150); ledcWrite(BUZZER_CHANNEL, 127);
-            leds[XY(28, 8)] = CRGB::Black; FastLED.show(); delay(150);
-            ledcWriteTone(BUZZER_CHANNEL, 0); ledcWrite(BUZZER_CHANNEL, 0);
-            leds[XY(28, 8)] = CRGB::Orange; FastLED.show(); delay(150);
-          }
-        } else {
-          // Service autorisé
-          declencherBip(1000, 50);
-          enAttenteEngagement = false;
-          direction = 1;
-          timerMouvement = millis();
-        }
-      }
-    } else if (joueurEngagement == 1) {
-      // C'est au Rouge de servir. Le Vert a le verrou.
-      if (clicVert) verrouService = false; // Le Vert libère le service
-      
-      if (clicRouge) {
-        if (verrouService) {
-          // Erreur : Service bloqué ! Bips graves et clignotement
-          for (int i = 0; i < 3; i++) {
-            ledcWriteTone(BUZZER_CHANNEL, 150); ledcWrite(BUZZER_CHANNEL, 127);
-            leds[XY(5, 1)] = CRGB::Black; FastLED.show(); delay(150);
-            ledcWriteTone(BUZZER_CHANNEL, 0); ledcWrite(BUZZER_CHANNEL, 0);
-            leds[XY(5, 1)] = CRGB::Orange; FastLED.show(); delay(150);
-          }
-        } else {
-          // Service autorisé
-          declencherBip(1000, 50);
-          enAttenteEngagement = false;
-          direction = -1;
-          timerMouvement = millis();
-        }
-      }
-    }
-  } else {
-    // 2. Logique de frappe (Renvoi)
-    // Si la balle se dirige vers la GAUCHE (c'est au Vert de jouer)
-    if (direction == -1 && clicVert) {
-      bool frappeValide = (posX <= tailleRaquette);
-      bool pouvoirObtenu = false;
-      bool pouvoirDetruit = false;
-
-      if (frappeValide) {
-        if (posX == 1) pouvoirObtenu = true; // Permet de remplacer son pouvoir si on en a déjà un
-        if (posX == tailleRaquette && pouvoirRouge > 0) pouvoirDetruit = true;
-      }
-
-      // Choix du son de renvoi
-      // On anticipe la prochaine vitesse/difficulté pour que le son monte dès le premier renvoi
-      int vitesseFuture = vitesseJeu;
-      int compteurFuture = compteurEchangesMax;
-      if (frappeValide) {
-        if (vitesseFuture > vitesseMax) vitesseFuture -= 5;
-        else compteurFuture++; // Si on est à vitesse max, on incrémente la difficulté infinie
-      }
-      // Le son augmente de 50 Hz à chaque accélération ou échange à vitesse max
-      unsigned int freqRebond = 1000 + (((80 - vitesseFuture) / 5) + compteurFuture) * 50;
-      if (pouvoirDetruit) {
-        declencherBipDouble(2500, 1500, 60, 80); // Reverse doulin (Aigu -> Grave)
-      } else if (pouvoirObtenu) {
-        declencherBipDouble(1500, 2500, 60, 80); // Doulin (Grave -> Aigu)
-      } else {
-        declencherBip(freqRebond, 30); // Bip classique normal ou faute
-      }
-
-      if (frappeValide) {
-        if (pouvoirObtenu) pouvoirVert = random(1, 4); // Aléatoire : 1(Dash), 2(Invisible), 3(Bouclier)
-        if (pouvoirDetruit) pouvoirRouge = 0;
-
-        direction = 1; // Renvoi valide vers la droite
-        if (vitesseJeu > vitesseMax) {
-          vitesseJeu -= 5; // On accélère la balle à chaque échange !
-        } else {
-          compteurEchangesMax++; // On compte les échanges à vitesse max
-          // Tous les 2 échanges à vitesse max, on réduit la raquette (jusqu'à 2 min)
-          if (compteurEchangesMax % 2 == 0 && tailleRaquette > 2) tailleRaquette--;
-        }
-      } else {
-        // Faute : Appui trop tôt ! Vert perd la manche.
-        posX = 0; // On force la balle hors limite à gauche
-        timerMouvement = 0; // On force le déclenchement immédiat de la perte de point
-      }
-      
-      // On "consomme" le clic pour ne pas déclencher le pouvoir par erreur dans la même boucle !
-      clicVert = false;
-    }
-    
-    // Si la balle se dirige vers la DROITE (c'est au Rouge de jouer)
-    if (direction == 1 && clicRouge) {
-      bool frappeValide = (posX >= (TRACK_LENGTH - tailleRaquette + 1));
-      bool pouvoirObtenu = false;
-      bool pouvoirDetruit = false;
-
-      if (frappeValide) {
-        if (posX == TRACK_LENGTH) pouvoirObtenu = true; // Permet de remplacer son pouvoir si on en a déjà un
-        if (posX == (TRACK_LENGTH - tailleRaquette + 1) && pouvoirVert > 0) pouvoirDetruit = true;
-      }
-
-      // Choix du son de renvoi
-      // On anticipe la prochaine vitesse/difficulté pour que le son monte dès le premier renvoi
-      int vitesseFuture = vitesseJeu;
-      int compteurFuture = compteurEchangesMax;
-      if (frappeValide) {
-        if (vitesseFuture > vitesseMax) vitesseFuture -= 5;
-        else compteurFuture++; // Si on est à vitesse max, on incrémente la difficulté infinie
-      }
-      // Le son augmente de 50 Hz à chaque accélération ou échange à vitesse max
-      unsigned int freqRebond = 1000 + (((80 - vitesseFuture) / 5) + compteurFuture) * 50;
-      if (pouvoirDetruit) {
-        declencherBipDouble(2500, 1500, 60, 80); // Reverse doulin (Aigu -> Grave)
-      } else if (pouvoirObtenu) {
-        declencherBipDouble(1500, 2500, 60, 80); // Doulin (Grave -> Aigu)
-      } else {
-        declencherBip(freqRebond, 30); // Bip classique normal ou faute
-      }
-
-      if (frappeValide) {
-        if (pouvoirObtenu) pouvoirRouge = random(1, 4); // Aléatoire : 1(Dash), 2(Invisible), 3(Bouclier)
-        if (pouvoirDetruit) pouvoirVert = 0;
-
-        direction = -1; // Renvoi valide vers la gauche
-        if (vitesseJeu > vitesseMax) {
-          vitesseJeu -= 5;
-        } else {
-          compteurEchangesMax++; // On compte les échanges à vitesse max
-          // Tous les 2 échanges à vitesse max, on réduit la raquette (jusqu'à 2 min)
-          if (compteurEchangesMax % 2 == 0 && tailleRaquette > 2) tailleRaquette--;
-        }
-      } else {
-        // Faute : Appui trop tôt ! Rouge perd la manche.
-        posX = TRACK_LENGTH + 1; // On force la balle hors limite à droite
-        timerMouvement = 0; // On force le déclenchement immédiat de la perte de point
-      }
-      
-      // On "consomme" le clic pour ne pas déclencher le pouvoir par erreur dans la même boucle !
-      clicRouge = false;
-    }
-
-    // --- UTILISATION DES POUVOIRS ACTIFS (Dash & Invisible) ---
-    // Joueur Vert : La balle s'éloigne, ligne 4. Zone de protection anti-déclenchement (posX > 5)
-    if (direction == 1 && clicVert && pouvoirVert > 0 && pouvoirVert != 3 && posX > 5 && posX <= 32) {
-      if (pouvoirVert == 1) dashRestant = 15; // Pouvoir 1 : Dash
-      else if (pouvoirVert == 2) invisibiliteRestante = 16; // Pouvoir 2 : Invisible
-      pouvoirVert = 0;
-      declencherEffetPouvoir(); // Déclenche le sweep Grave -> Aigu -> Grave
-    }
-
-    // Joueur Rouge : La balle s'éloigne, ligne 5. Zone de protection anti-déclenchement (posX < 60)
-    if (direction == -1 && clicRouge && pouvoirRouge > 0 && pouvoirRouge != 3 && posX < 60 && posX >= 33) {
-      if (pouvoirRouge == 1) dashRestant = 15; // Pouvoir 1 : Dash
-      else if (pouvoirRouge == 2) invisibiliteRestante = 16; // Pouvoir 2 : Invisible
-      pouvoirRouge = 0;
-      declencherEffetPouvoir(); // Déclenche le sweep Grave -> Aigu -> Grave
-    }
-
-    // 3. Déplacement de la balle géré par le temps (millis)
-    unsigned long delaiMouvement = (dashRestant > 0) ? 5 : vitesseJeu;
-    if (millis() - timerMouvement > delaiMouvement) {
-      timerMouvement = millis();
-      posX += direction;
-      if (dashRestant > 0) dashRestant--;
-      if (invisibiliteRestante > 0) invisibiliteRestante--;
-
-      // Si la balle sort complètement de l'écran : un joueur a raté
-      if (posX < 1 || posX > TRACK_LENGTH) {
-        bool vertARate = (posX < 1); // Si elle sort à gauche, c'est Vert qui a raté
-        
-        // Vérification du Bouclier (Pouvoir passif n°3)
-        if (vertARate && pouvoirVert == 3) {
-          pouvoirVert = 0; // Le bouclier est consommé
-          posX = 1; // La balle rebondit
-          direction = 1; // Repart vers l'adversaire
-          declencherEffetPouvoir(); // Son spécial de déclenchement
-        } 
-        else if (!vertARate && pouvoirRouge == 3) {
-          pouvoirRouge = 0; // Le bouclier est consommé
-          posX = TRACK_LENGTH; // La balle rebondit
-          direction = -1; // Repart vers l'adversaire
-          declencherEffetPouvoir(); // Son spécial de déclenchement
-        } 
-        else {
-          // --- PERTE DE LA MANCHE ---
-        CRGB couleurPoint = vertARate ? CRGB::Red : CRGB::Green; 
-        
-        // Le perdant obtient l'engagement à la prochaine manche
-        joueurEngagement = vertARate ? -1 : 1;
-        
-        // On retire une vie au perdant
-        if (vertARate) viesVert--;
-        else viesRouge--;
-
-        if (viesVert <= 0 || viesRouge <= 0) {
-          // 1. Lancement du "Klaxon" de but (Goal Horn de hockey)
-          ledcWriteTone(BUZZER_CHANNEL, 150); // Fréquence très grave
-          ledcWrite(BUZZER_CHANNEL, 127);
-          
-          // Animation de victoire : balayage de l'écran pendant que le klaxon sonne
-          CRGB couleurGagnant = (viesVert <= 0) ? CRGB::Red : CRGB::Green;
-          FastLED.clear();
-          for (int x = 1; x <= MATRIX_WIDTH; x++) {
-            // Le balayage part du camp du gagnant
-            int colonne = (viesVert <= 0) ? (MATRIX_WIDTH - x + 1) : x; 
-            for (int y = 1; y <= MATRIX_HEIGHT; y++) {
-              leds[XY(colonne, y)] = couleurGagnant;
-            }
-            FastLED.show();
-            delay(30); // 32 colonnes * 30ms = ~960ms de klaxon
-          }
-          
-          // Arrêt du klaxon et courte pause dramatique
-          ledcWriteTone(BUZZER_CHANNEL, 0);
-          ledcWrite(BUZZER_CHANNEL, 0);
-          delay(200); 
-
-          // 2. Fanfare "Charge!" typique des stades (G4, C5, E5, G5, E5, G5)
-          int notes[] = {392, 523, 659, 784, 659, 784}; 
-          int durees[] = {150, 150, 150, 300, 150, 500};
-          for (int i = 0; i < 6; i++) {
-            ledcWriteTone(BUZZER_CHANNEL, notes[i]);
-            ledcWrite(BUZZER_CHANNEL, 127);
-            delay(durees[i]);
-            ledcWriteTone(BUZZER_CHANNEL, 0);
-            ledcWrite(BUZZER_CHANNEL, 0);
-            delay(50); // Silence entre les notes
-          }
-          
-          delay(1000); // Petite pause avant d'autoriser la relance du jeu
-          partieTerminee = true;
-        } else {
-          declencherBip(300, 600); // Bip long pour la perte d'une vie
-          CRGB couleurVie = CRGB(127, 10, 73); // Rose foncé
-          
-          // Animation de point marqué (manche perdue) avec clignotement de la vie
-          for (int i = 0; i < 3; i++) {
-            // 1. ÉTAT ÉTEINT : La piste s'éteint, la vie perdue disparait
-            FastLED.clear(); 
-            for (int v = 0; v < viesVert; v++) leds[XY(1 + v, 1)] = couleurVie;
-            for (int v = 0; v < viesRouge; v++) leds[XY(32 - v, 8)] = couleurVie;
-            FastLED.show(); 
-            delay(250); // Temps éteint (assez lent)
-            
-            // 2. ÉTAT ALLUMÉ : La piste s'allume, la vie perdue réapparait
-            FastLED.clear();
-            for (int v = 0; v < viesVert; v++) leds[XY(1 + v, 1)] = couleurVie;
-            for (int v = 0; v < viesRouge; v++) leds[XY(32 - v, 8)] = couleurVie;
-            
-            // On rajoute la vie qui est en train d'être perdue pour la faire clignoter
-            if (vertARate) leds[XY(1 + viesVert, 1)] = couleurVie; 
-            else leds[XY(32 - viesRouge, 8)] = couleurVie;         
-            
-            // On allume la piste aux couleurs du gagnant
-            for (int p = 1; p <= TRACK_LENGTH; p++) {
-              int bx = (p <= 32) ? p : p - 32;
-              int by = (p <= 32) ? 4 : 5;
-              leds[XY(bx, by)] = couleurPoint;
-            }
-            FastLED.show(); 
-            delay(350); // Temps allumé
-          }
-        }
-        
-        // Remise à zéro pour l'engagement suivant
-        posX = (joueurEngagement == -1) ? 16 : 48; // Milieu de la ligne 4 (16) ou 5 (48)
-        enAttenteEngagement = true; // On bloque en attente
-        vitesseJeu = 80; 
-        tailleRaquette = 5; // On réinitialise la taille des raquettes
-        compteurEchangesMax = 0; // On réinitialise le compteur
-        pouvoirVert = 0; // Les pouvoirs sont perdus à chaque fin de manche
-        pouvoirRouge = 0;
-        dashRestant = 0; // On stoppe tout dash en cours
-        invisibiliteRestante = 0; // On annule l'invisibilité
-        verrouService = true; // On remet le verrou pour le prochain service
-        }
-      }
-    }
-  }
-
-  // 4. Dessin de l'écran
-  FastLED.clear();
-
-  // Zones de renvoi (Taille dynamique)
-  for(int x = 1; x <= tailleRaquette; x++) leds[XY(x, 4)] = CRGB(0, 20, 0);   // Raquette verte (gauche)
-  for(int x = 32 - tailleRaquette + 1; x <= 32; x++) leds[XY(x, 5)] = CRGB(20, 0, 0); // Raquette rouge (droite)
-
-  // Affichage des vies en rose foncé (Ligne 1 pour Vert, Ligne 8 pour Rouge)
-  // On crée une couleur avec la moitié de la luminosité du DeepPink habituel (env 255, 20, 147)
-  CRGB couleurVie = CRGB(127, 10, 73); 
-  for (int i = 0; i < viesVert; i++) leds[XY(1 + i, 1)] = couleurVie; // Vies gauche (Ligne du haut)
-  for (int i = 0; i < viesRouge; i++) leds[XY(32 - i, 8)] = couleurVie; // Vies droite (Ligne du bas)
-
-  // Affichage des pouvoirs (LED bleue en dessous des vies selon le type)
-  if (pouvoirVert == 1) leds[XY(1, 2)] = CRGB::Blue; // Dash
-  else if (pouvoirVert == 2) leds[XY(2, 2)] = CRGB::Blue; // Invisible
-  else if (pouvoirVert == 3) leds[XY(3, 2)] = CRGB::Blue; // Bouclier
-
-  if (pouvoirRouge == 1) leds[XY(32, 7)] = CRGB::Blue; // Dash
-  else if (pouvoirRouge == 2) leds[XY(31, 7)] = CRGB::Blue; // Invisible
-  else if (pouvoirRouge == 3) leds[XY(30, 7)] = CRGB::Blue; // Bouclier
-
-  // Affichage du verrou de service (en Orange) si actif
-  if (enAttenteEngagement && verrouService) {
-    if (joueurEngagement == -1) leds[XY(28, 8)] = CRGB::Orange; // Verrou du Rouge
-    else leds[XY(5, 1)] = CRGB::Orange; // Verrou du Vert
-  }
-
-  // Dessin de la balle
-  if (posX >= 1 && posX <= TRACK_LENGTH) {
-    // Conversion de la position 1D (1 à 64) en coordonnées 2D réelles
-    int balleX = (posX <= 32) ? posX : posX - 32;
-    int balleY = (posX <= 32) ? 4 : 5;
-
-    if (enAttenteEngagement) {
-      // La balle prend la couleur du joueur qui doit engager
-      leds[XY(balleX, balleY)] = (joueurEngagement == -1) ? CRGB::Green : CRGB::Red;
-    } else {
-      if (invisibiliteRestante > 0) {
-        // Balle invisible : on ne dessine rien !
-      } else {
-        // La balle devient jaune en cours d'échange
-        leds[XY(balleX, balleY)] = CRGB::Yellow;
-      }
-    }
-  }
-
-  FastLED.show();
 }
