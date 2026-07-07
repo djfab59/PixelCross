@@ -28,6 +28,12 @@ static bool prevExitCombo = HIGH;
 static int victoiresVert = 0;
 static int victoiresRouge = 0;
 
+// Variables pour l'animation non-bloquante du verrou de service
+static bool alerteVerrouActive = false;
+static unsigned long timerAlerteVerrou = 0;
+static int compteurAlerteVerrou = 0;
+const int DUREE_CLIGNOTEMENT_VERROU = 150; // 150ms
+
 void initPong() {
   posX = (joueurEngagement == -1) ? 16 : 48;
   direction = (joueurEngagement == -1) ? 1 : -1;
@@ -45,6 +51,9 @@ void initPong() {
   invisibiliteRestante = 0;
   verrouService = true;
   prevExitCombo = HIGH;
+  alerteVerrouActive = false; // On s'assure que l'animation est stoppée
+  timerAlerteVerrou = 0;
+  compteurAlerteVerrou = 0;
   
   // On mémorise l'état actuel des boutons pour éviter un déclenchement instantané
   etatPrecedentVert = digitalRead(BTN_GREEN_PIN);
@@ -108,14 +117,11 @@ void loopPong() {
     // Logique d'engagement
     if (joueurEngagement == -1) {
       if (clicRouge) verrouService = false;
-      if (clicVert) {
+      if (clicVert && !alerteVerrouActive) { // On ne peut pas déclencher si l'alerte est déjà en cours
         if (verrouService) {
-          for (int i = 0; i < 3; i++) {
-            ledcWriteTone(BUZZER_CHANNEL, 150); ledcWrite(BUZZER_CHANNEL, 127);
-            leds[XY(28, 8)] = CRGB::Black; FastLED.show(); delay(150);
-            ledcWriteTone(BUZZER_CHANNEL, 0); ledcWrite(BUZZER_CHANNEL, 0);
-            leds[XY(28, 8)] = CRGB::Orange; FastLED.show(); delay(150);
-          }
+          alerteVerrouActive = true;
+          timerAlerteVerrou = millis();
+          compteurAlerteVerrou = 0;
         } else {
           declencherBip(1000, 50);
           enAttenteEngagement = false;
@@ -125,14 +131,11 @@ void loopPong() {
       }
     } else if (joueurEngagement == 1) {
       if (clicVert) verrouService = false;
-      if (clicRouge) {
+      if (clicRouge && !alerteVerrouActive) {
         if (verrouService) {
-          for (int i = 0; i < 3; i++) {
-            ledcWriteTone(BUZZER_CHANNEL, 150); ledcWrite(BUZZER_CHANNEL, 127);
-            leds[XY(5, 1)] = CRGB::Black; FastLED.show(); delay(150);
-            ledcWriteTone(BUZZER_CHANNEL, 0); ledcWrite(BUZZER_CHANNEL, 0);
-            leds[XY(5, 1)] = CRGB::Orange; FastLED.show(); delay(150);
-          }
+          alerteVerrouActive = true;
+          timerAlerteVerrou = millis();
+          compteurAlerteVerrou = 0;
         } else {
           declencherBip(1000, 50);
           enAttenteEngagement = false;
@@ -141,6 +144,31 @@ void loopPong() {
         }
       }
     }
+
+    // --- GESTION DE L'ANIMATION D'ALERTE (NON-BLOQUANTE) ---
+    if (alerteVerrouActive) {
+      if (millis() - timerAlerteVerrou > DUREE_CLIGNOTEMENT_VERROU) {
+        timerAlerteVerrou = millis();
+        compteurAlerteVerrou++;
+
+        if (compteurAlerteVerrou % 2 != 0) { // Phase 1: Bip + LED éteinte
+          ledcWriteTone(BUZZER_CHANNEL, 150);
+          ledcWrite(BUZZER_CHANNEL, 127);
+        } else { // Phase 2: Pas de bip + LED allumée
+          ledcWriteTone(BUZZER_CHANNEL, 0);
+          ledcWrite(BUZZER_CHANNEL, 0);
+        }
+
+        if (compteurAlerteVerrou >= 6) { // 3 clignotements complets (6 phases)
+          alerteVerrouActive = false;
+          // On s'assure que le son est coupé et que la LED est visible à la fin
+          ledcWriteTone(BUZZER_CHANNEL, 0);
+          ledcWrite(BUZZER_CHANNEL, 0);
+        }
+      }
+    }
+
+
   } else {
     // 2. Logique de frappe (Renvoi)
     // Si la balle se dirige vers la GAUCHE (c'est au Vert de jouer)
@@ -270,7 +298,10 @@ void loopPong() {
           declencherEffetPouvoir(); 
         } 
         else {
-          CRGB couleurPoint = vertARate ? CRGB::Red : CRGB::Green; 
+          // On réduit ENCORE PLUS la luminosité du trait. La réduction précédente à 150
+          // n'était pas suffisante pour empêcher la chute de tension sur la matrice.
+          // Une valeur de 80 devrait être beaucoup plus stable.
+          CRGB couleurPoint = vertARate ? CRGB(80, 0, 0) : CRGB(0, 80, 0);
           joueurEngagement = vertARate ? -1 : 1;
           
           if (vertARate) viesVert--;
@@ -281,8 +312,8 @@ void loopPong() {
             if (viesVert <= 0) victoiresRouge++;
             else victoiresVert++;
             
-            if (victoiresVert > 99) victoiresVert = 99; // Plafond à 99 victoires
-            if (victoiresRouge > 99) victoiresRouge = 99;
+            if (victoiresVert > 999) victoiresVert = 999; // Plafond à 999 victoires
+            if (victoiresRouge > 999) victoiresRouge = 999;
             
             afficherScore7Seg(victoiresVert, victoiresRouge);
 
@@ -359,8 +390,10 @@ void loopPong() {
 
   // 4. Dessin de l'écran
   FastLED.clear();
-  for(int x = 1; x <= tailleRaquette; x++) leds[XY(x, 4)] = CRGB(0, 20, 0);   
-  for(int x = 32 - tailleRaquette + 1; x <= 32; x++) leds[XY(x, 5)] = CRGB(20, 0, 0); 
+  // Augmentons la luminosité des raquettes pour voir si le scintillement disparaît
+  // Une valeur comme 80 est assez lumineuse pour être stable.
+  for(int x = 1; x <= tailleRaquette; x++) leds[XY(x, 4)] = CRGB(0, 80, 0);   
+  for(int x = 32 - tailleRaquette + 1; x <= 32; x++) leds[XY(x, 5)] = CRGB(80, 0, 0); 
 
   CRGB couleurVie = CRGB(127, 10, 73); 
   for (int i = 0; i < viesVert; i++) leds[XY(1 + i, 1)] = couleurVie; 
@@ -375,8 +408,16 @@ void loopPong() {
   else if (pouvoirRouge == 3) leds[XY(30, 7)] = CRGB::Blue; 
 
   if (enAttenteEngagement && verrouService) {
-    if (joueurEngagement == -1) leds[XY(28, 8)] = CRGB::Orange; 
-    else leds[XY(5, 1)] = CRGB::Orange; 
+    // On gère l'affichage du verrou en fonction de l'animation d'alerte
+    bool afficherVerrou = true;
+    if (alerteVerrouActive && compteurAlerteVerrou % 2 != 0) {
+      afficherVerrou = false; // On n'affiche pas le verrou pendant la phase "éteinte" du clignotement
+    }
+
+    if (afficherVerrou) {
+      if (joueurEngagement == -1) leds[XY(28, 8)] = CRGB::Orange; 
+      else leds[XY(5, 1)] = CRGB::Orange; 
+    }
   }
 
   if (posX >= 1 && posX <= TRACK_LENGTH) {

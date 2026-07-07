@@ -26,7 +26,8 @@ void initTest() {
   prevR1 = digitalRead(BTN_RED1_PIN);
   prevR2 = digitalRead(BTN_RED2_PIN);
 
-  afficherScore7Seg(testScoreVert, testScoreRouge);
+  // On affiche les scores avec 1 décimale (format XX.X)
+  afficherScoreDecimal7Seg((float)testScoreVert / 10.0, (float)testScoreRouge / 10.0, 1);
 }
 
 void loopTest() {
@@ -66,21 +67,21 @@ void loopTest() {
     }
   } else {
     // --- LOGIQUE D'INCRÉMENTATION DES AFFICHEURS ---
-    if (clicG || clicG1 || clicG2) {
-      testScoreVert++;
-      if (testScoreVert > 99) testScoreVert = 0; // Remise à zéro après 99
-      afficherScore7Seg(testScoreVert, testScoreRouge);
-      declencherBip(1500, 20);
-    }
-    
-    if (clicR || clicR1 || clicR2) {
-      testScoreRouge++;
-      if (testScoreRouge > 99) testScoreRouge = 0; // Remise à zéro après 99
-      afficherScore7Seg(testScoreVert, testScoreRouge);
+    bool scoreUpdated = false;
+    if (clicG)  { testScoreVert = (testScoreVert + 100) % 1000; scoreUpdated = true; } // +10.0
+    if (clicG1) { testScoreVert = (testScoreVert + 1)   % 1000; scoreUpdated = true; } // +0.1
+    if (clicG2) { testScoreVert = (testScoreVert + 10)  % 1000; scoreUpdated = true; } // +1.0
+    if (clicR)  { testScoreRouge = (testScoreRouge + 100) % 1000; scoreUpdated = true; } // +10.0
+    if (clicR1) { testScoreRouge = (testScoreRouge + 1)   % 1000; scoreUpdated = true; } // +0.1
+    if (clicR2) { testScoreRouge = (testScoreRouge + 10)  % 1000; scoreUpdated = true; } // +1.0
+
+    if (scoreUpdated) {
+      afficherScoreDecimal7Seg((float)testScoreVert / 10.0, (float)testScoreRouge / 10.0, 1);
       declencherBip(1500, 20);
     }
 
     // --- AFFICHAGE SUR LA MATRICE LED ---
+    // On affiche un message pour chaque bouton pressé
     if (btnG) {
       drawCenteredString("VERT", 2, CRGB::Green);
     } else if (btnG1) {

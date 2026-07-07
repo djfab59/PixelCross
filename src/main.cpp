@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <FastLED.h>
+#include <Preferences.h> // Ajout de la bibliothèque pour la mémoire NVS
 #include "shared.h"
 #include "pong.h"
 #include "settings.h"
@@ -7,6 +8,9 @@
 
 // Le tableau qui va contenir l'état de chaque LED
 CRGB leds[NUM_LEDS];
+Preferences preferences; // Objet pour gérer la sauvegarde en mémoire
+uint8_t brightness = 32; // Variable globale pour la luminosité (valeur par défaut)
+
 AppState currentState = STATE_MENU; // L'application démarre sur le Menu
 
 // Variables pour le système de Menu
@@ -202,41 +206,72 @@ void afficherScore7Seg(int scoreVert, int scoreRouge) {
   digitalWrite(PIN_LOAD, HIGH);
 }
 
+// Nouvelle fonction pour gérer les nombres à virgule
+void afficherScoreDecimal7Seg(float scoreVert, float scoreRouge, int decimales) {
+  // Multiplicateur pour transformer le float en int (ex: 9.99 avec 2 décimales -> 9.99 * 100 = 999)
+  int multiplicateur = pow(10, decimales);
+  int intScoreVert = (scoreVert >= 0) ? round(scoreVert * multiplicateur) : -1;
+  int intScoreRouge = (scoreRouge >= 0) ? round(scoreRouge * multiplicateur) : -1;
+
+  digitalWrite(PIN_LOAD, LOW);
+
+  // --- JOUEUR ROUGE ---
+  int divRouge = 1;
+  for (int i = 0; i < DIGITS_PER_MODULE; i++) {
+    uint8_t digit = (intScoreRouge >= 0) ? table7Seg[(intScoreRouge / divRouge) % 10] : table7Seg[10];
+    // Si on est sur le digit qui doit avoir le point, on force son bit à 0
+    if (intScoreRouge >= 0 && i == decimales) {
+      digit &= 0b01111111; // Met le bit du point à 0 (allumé) sans toucher aux autres
+    }
+    shiftOut(PIN_SDI, PIN_SCLK, MSBFIRST, digit);
+    divRouge *= 10;
+  }
+
+  // --- JOUEUR VERT ---
+  int divVert = 1;
+  for (int i = 0; i < DIGITS_PER_MODULE; i++) {
+    uint8_t digit = (intScoreVert >= 0) ? table7Seg[(intScoreVert / divVert) % 10] : table7Seg[10];
+    if (intScoreVert >= 0 && i == decimales) {
+      digit &= 0b01111111;
+    }
+    shiftOut(PIN_SDI, PIN_SCLK, MSBFIRST, digit);
+    divVert *= 10;
+  }
+
+  digitalWrite(PIN_LOAD, HIGH);
+}
+
 void setup() {
   Serial.begin(115200);
   
-  // Configuration des boutons avec résistance interne de tirage (PULLUP)
+  // --- CHARGEMENT DES PRÉFÉRENCES UTILISATEUR ---
+  preferences.begin("pixelcross", false);
+  brightness = preferences.getUChar("brightness", 32);
+  preferences.end();
+
+  randomSeed(esp_random());
+  
   pinMode(BTN_GREEN_PIN, INPUT_PULLUP);
   pinMode(BTN_GREEN1_PIN, INPUT_PULLUP);
   pinMode(BTN_GREEN2_PIN, INPUT_PULLUP);
   pinMode(BTN_RED_PIN, INPUT_PULLUP);
   pinMode(BTN_RED1_PIN, INPUT_PULLUP);
   pinMode(BTN_RED2_PIN, INPUT_PULLUP);
+
   pinMode(BUZZER_PIN, OUTPUT);
 
-  // Configuration des broches pour les afficheurs 7 segments
   pinMode(PIN_SDI, OUTPUT);
   pinMode(PIN_SCLK, OUTPUT);
   pinMode(PIN_LOAD, OUTPUT);
-  
-  // Test de l'afficheur (tout éteint au démarrage sur le menu)
   afficherScore7Seg(-1, -1);
 
-  // Configuration native du PWM de l'ESP32 (Canal 0, 2000Hz, Résolution 8 bits)
   ledcSetup(BUZZER_CHANNEL, 2000, 8);
   ledcAttachPin(BUZZER_PIN, BUZZER_CHANNEL);
-
-  // Configuration de FastLED (Modèle de puce, broche, ordre des couleurs)
   FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(leds, NUM_LEDS);
   
-  // Gestion dynamique de l'alimentation intégrée à FastLED !
-  // Ton alimentation fait 3000mA (3A). On limite le logiciel à 2500mA
-  // pour garder une marge de sécurité.
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 2500); 
   
-  // On peut maintenant régler la luminosité de base à 100% (255) !
-  FastLED.setBrightness(32); 
-  Serial.println("Démarrage du test avec l'alimentation externe de 3A !");
+  FastLED.setBrightness(brightness); 
 }
 
 void drawMenu() {

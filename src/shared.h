@@ -21,7 +21,7 @@
 #define PIN_SDI 8
 #define PIN_SCLK 9
 #define PIN_LOAD 10
-#define DIGITS_PER_MODULE 2 // Nombre de chiffres par afficheur (à modifier si changement de matériel)
+#define DIGITS_PER_MODULE 3 // Nombre de chiffres par afficheur (à modifier si changement de matériel)
 
 // Paramètres de la matrice
 #define MATRIX_WIDTH 32
@@ -40,6 +40,7 @@ extern AppState currentState;
 
 // Déclaration des variables et fonctions globales partagées
 extern CRGB leds[NUM_LEDS];
+extern uint8_t brightness;
 
 uint16_t XY(uint8_t x, uint8_t y);
 void declencherBip(unsigned int frequence, unsigned long duree);
@@ -54,5 +55,6 @@ extern bool invertText;
 
 // Fonction globale pour l'affichage du score physique
 void afficherScore7Seg(int scoreVert, int scoreRouge);
+void afficherScoreDecimal7Seg(float scoreVert, float scoreRouge, int decimales);
 
 #endif
