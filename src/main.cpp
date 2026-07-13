@@ -378,5 +378,7 @@ void loop() {
     // On ne fait RIEN d'autre pour donner toutes les ressources au portail WiFi.
     // La fonction est bloquante et changera l'etat elle-meme a la fin.
     startWifiConfigPortal();
+  } else if (currentState == STATE_OTA_UPDATE) {
+    loopOtaUpdate();
   }
 }

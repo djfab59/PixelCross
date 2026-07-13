@@ -4,6 +4,9 @@
 #include <WiFiManager.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <WiFiClientSecure.h>
+#include <Update.h>
 
 static bool prevExitCombo = HIGH;
 static bool editingMode = false;
@@ -84,6 +87,223 @@ void startWifiConfigPortal() {
   currentState = STATE_SETTINGS;
 }
 
+
+// --- LOGIQUE DE MISE A JOUR OTA ---
+
+// Parametres pour l'API GitHub
+const char* API_HOST = "api.github.com";
+const char* GITHUB_USER_REPO = "djfab59/PixelCross";
+const String API_URL = String("/repos/") + GITHUB_USER_REPO + "/releases/latest";
+
+// Differentes etapes de la mise a jour
+enum OtaState {
+  OTA_INIT,
+  OTA_CONNECTING_WIFI,
+  OTA_CHECK_VERSION,
+  OTA_DOWNLOADING,
+  OTA_SUCCESS,
+  OTA_FAIL,
+  OTA_UP_TO_DATE
+};
+static OtaState otaCurrentState;
+
+void initOtaUpdate() {
+  otaCurrentState = OTA_INIT;
+  FastLED.clear();
+  drawCenteredString("UPDATE", 2, CRGB::Blue);
+  FastLED.show();
+}
+
+void performOtaUpdate(String firmwareUrl) {
+  Serial.println("Debut du telechargement de la mise a jour depuis " + firmwareUrl);
+
+  FastLED.clear();
+  drawCenteredString("DL", 2, CRGB::Orange); // DL pour Download
+  FastLED.show();
+
+  WiFiClientSecure client;
+  // NOTE: setInsecure() contourne la validation du certificat. C'est pratique pour les
+  // projets personnels mais deconseille pour des produits commerciaux sensibles.
+  client.setInsecure();
+
+  HTTPClient http;
+  // On utilise la surcharge qui prend une URL complete et on active le suivi des redirections
+  http.begin(client, firmwareUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    int contentLength = http.getSize();
+    if (contentLength <= 0) {
+      Serial.println("Erreur: Taille de contenu invalide.");
+      otaCurrentState = OTA_FAIL;
+      return;
+    }
+
+    bool canBegin = Update.begin(contentLength);
+    if (!canBegin) {
+      Serial.println("Erreur: Espace insuffisant pour la mise a jour.");
+      Update.printError(Serial);
+      otaCurrentState = OTA_FAIL;
+      return;
+    }
+
+    WiFiClient* stream = http.getStreamPtr();
+    size_t written = Update.writeStream(*stream);
+
+    if (written == contentLength) {
+      Serial.println("Telechargement complet.");
+    } else {
+      Serial.println("Erreur: Telechargement incomplet.");
+      otaCurrentState = OTA_FAIL;
+      return;
+    }
+
+    if (Update.end()) {
+      Serial.println("Mise a jour terminee avec succes !");
+      otaCurrentState = OTA_SUCCESS;
+    } else {
+      Serial.println("Erreur lors de la finalisation de la mise a jour.");
+      Update.printError(Serial);
+      otaCurrentState = OTA_FAIL;
+    }
+
+  } else {
+    Serial.printf("Erreur HTTP lors du telechargement du firmware: %d\n", httpCode);
+    otaCurrentState = OTA_FAIL;
+  }
+  http.end();
+}
+
+void loopOtaUpdate() {
+  static unsigned long stateTimer = 0;
+
+  switch (otaCurrentState) {
+    case OTA_INIT:
+      if (WiFi.status() == WL_CONNECTED) {
+        otaCurrentState = OTA_CHECK_VERSION;
+      } else {
+        otaCurrentState = OTA_CONNECTING_WIFI;
+        // On s'assure que le correctif de puissance est applique
+        WiFi.mode(WIFI_STA);
+        WiFi.setTxPower(WIFI_POWER_5dBm);
+        WiFi.begin();
+        stateTimer = millis();
+        Serial.println("OTA: Connexion au WiFi...");
+      }
+      break;
+
+    case OTA_CONNECTING_WIFI:
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("OTA: Connecte !");
+        otaCurrentState = OTA_CHECK_VERSION;
+      } else if (millis() - stateTimer > 15000) { // Timeout de 15s
+        Serial.println("OTA: Echec de la connexion WiFi.");
+        otaCurrentState = OTA_FAIL;
+      }
+      break;
+
+    case OTA_CHECK_VERSION:
+      {
+        Serial.println("Verification de la version en ligne...");
+        Serial.println("Interrogation de l'API GitHub pour la derniere release...");
+        WiFiClientSecure client;
+        client.setInsecure();
+        HTTPClient http;
+        
+        http.begin(client, API_HOST, 443, API_URL);
+        // L'API GitHub requiert un User-Agent
+        http.addHeader("User-Agent", "ESP32-OTA-Updater");
+
+        int httpCode = http.GET();
+        if (httpCode == HTTP_CODE_OK) {
+          // L'API peut renvoyer beaucoup de donnees, on utilise un document dynamique
+          DynamicJsonDocument doc(4096);
+          DeserializationError error = deserializeJson(doc, http.getStream());
+          http.end();
+
+          if (error) {
+            Serial.printf("Erreur de deserialisation JSON: %s\n", error.c_str());
+            otaCurrentState = OTA_FAIL;
+            break;
+          }
+
+          // On cherche les URL de nos fichiers dans la liste des "assets" de la release
+          String version_url;
+          String firmware_url;
+          String firmware_filename = String("firmware-") + PIO_ENV_NAME + ".zip";
+
+          for (JsonObject asset : doc["assets"].as<JsonArray>()) {
+            if (String(asset["name"]) == "version.json") {
+              version_url = asset["browser_download_url"].as<String>();
+            }
+            if (String(asset["name"]) == firmware_filename) {
+              firmware_url = asset["browser_download_url"].as<String>();
+            }
+          }
+
+          if (version_url.isEmpty() || firmware_url.isEmpty()) {
+            Serial.println("Erreur: Impossible de trouver version.json ou le fichier firmware dans la derniere release.");
+            otaCurrentState = OTA_FAIL;
+            break;
+          }
+
+          // Maintenant qu'on a l'URL du version.json, on le telecharge
+          http.begin(client, version_url);
+          httpCode = http.GET();
+          if (httpCode != HTTP_CODE_OK) {
+             Serial.printf("Erreur au telechargement de version.json: HTTP %d\n", httpCode);
+             otaCurrentState = OTA_FAIL;
+             break;
+          }
+
+          DynamicJsonDocument version_doc(256);
+          deserializeJson(version_doc, http.getStream());
+          int remoteVersion = version_doc["version"];
+          Serial.printf("Version actuelle: %d, Version en ligne: %d\n", FIRMWARE_VERSION, remoteVersion);
+
+          if (remoteVersion > FIRMWARE_VERSION) {
+            performOtaUpdate(firmware_url);
+          } else { otaCurrentState = OTA_UP_TO_DATE; }
+
+        } else {
+          Serial.printf("Erreur d'interrogation de l'API GitHub: HTTP %d\n", httpCode);
+          http.end();
+          otaCurrentState = OTA_FAIL;
+        }
+      }
+      break;
+
+    case OTA_DOWNLOADING:
+      // La fonction performOtaUpdate est bloquante, donc on ne passe jamais vraiment ici.
+      // L'etat est mis a jour a la fin de performOtaUpdate.
+      break;
+
+    case OTA_SUCCESS:
+      FastLED.clear();
+      drawCenteredString("OK", 2, CRGB::Green);
+      FastLED.show();
+      Serial.println("Redemarrage dans 3 secondes...");
+      delay(3000);
+      ESP.restart();
+      break;
+
+    case OTA_FAIL:
+    case OTA_UP_TO_DATE:
+      if (stateTimer == 0) { // Premiere entree dans cet etat
+        FastLED.clear();
+        if (otaCurrentState == OTA_FAIL) drawCenteredString("FAIL", 2, CRGB::Red);
+        else drawCenteredString("A JOUR", 2, CRGB::Green);
+        FastLED.show();
+        stateTimer = millis();
+      }
+      if (millis() - stateTimer > 3000) { // Apres 3 secondes
+        stateTimer = 0; // On reinitialise le timer pour la prochaine fois
+        currentState = STATE_SETTINGS;
+      }
+      break;
+  }
+}
 
 void loopSettings() {
   // --- LECTURE DES BOUTONS ---
@@ -222,72 +442,8 @@ void loopSettings() {
         currentState = STATE_WIFI_CONFIG;
       } else if (settingsMenuIndex == 2) {
         // --- ACTION POUR "UPDATE" ---
-        declencherBip(800, 50);
-
-        // 1. Afficher "UPDATE" en bleu pendant le test
-        FastLED.clear();
-        drawCenteredString("UPDATE", 2, CRGB::Blue);
-        FastLED.show();
-
-        bool internetAccess = false;
-        // On verifie si on est deja connecte
-        if (WiFi.status() != WL_CONNECTED) {
-          // On tente de recuperer le dernier SSID configure pour un log plus clair.
-          String savedSSID = WiFi.SSID();
-          if (savedSSID.length() > 0) {
-            Serial.printf("WiFi non connecte. Tentative de connexion sur le SSID %s...\n", savedSSID.c_str());
-          } else {
-            Serial.println("WiFi non connecte. Tentative de connexion avec les identifiants sauvegardes...");
-          }
-          
-          // On s'assure que le correctif de puissance est applique avant toute tentative de connexion
-          // et que le mode est bien Station (au cas ou on sort du mode AP du portail)
-          WiFi.mode(WIFI_STA);
-          Serial.println("Reduction de la puissance d'emission WiFi a 5dBm pour la stabilite...");
-          WiFi.setTxPower(WIFI_POWER_5dBm);
-
-          WiFi.begin(); // Utilise les derniers identifiants connus
-
-          // Attendre la connexion avec un timeout de 15 secondes
-          unsigned long startAttemptTime = millis();
-          unsigned long lastDotTime = 0;
-          while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 15000) {
-            gererBuzzer(); // On continue de gerer le buzzer pour qu'il s'arrete
-            if (millis() - lastDotTime > 500) {
-              Serial.print(".");
-              lastDotTime = millis();
-            }
-            delay(10); // On laisse un peu de temps aux autres process
-          }
-          Serial.println();
-        }
-
-        // Une fois (potentiellement) connecte, on teste l'acces a internet
-        if (WiFi.status() == WL_CONNECTED) {
-          Serial.println("Connecte au WiFi. Test de l'acces a Internet...");
-          HTTPClient http;
-          http.begin("http://detectportal.firefox.com/success.txt");
-          http.setConnectTimeout(5000); // Timeout de 5 secondes
-          int httpCode = http.GET();
-
-          if (httpCode == HTTP_CODE_OK) {
-            internetAccess = true;
-            Serial.printf("[HTTP] Test reussi, code: %d\n", httpCode);
-          } else {
-            Serial.printf("[HTTP] Echec du test, code: %d, erreur: %s\n", httpCode, http.errorToString(httpCode).c_str());
-          }
-          http.end();
-        } else {
-          Serial.println("Echec de la connexion WiFi.");
-        }
-
-        // 2. Afficher le resultat (Vert ou Rouge) et le laisser a l'ecran un court instant
-        FastLED.clear();
-        drawCenteredString("UPDATE", 2, internetAccess ? CRGB::Green : CRGB::Red);
-        if (internetAccess) declencherBip(1200, 80);
-        else declencherBipDouble(400, 200, 100, 100);
-        FastLED.show();
-        messageDisplayTime = millis(); // Utilise le mecanisme de message temporise pour revenir au menu
+        initOtaUpdate();
+        currentState = STATE_OTA_UPDATE;
       }
     }
   }

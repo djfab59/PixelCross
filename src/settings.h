@@ -4,5 +4,7 @@
 void initSettings();
 void loopSettings();
 void startWifiConfigPortal();
+void initOtaUpdate();
+void loopOtaUpdate();
 
 #endif

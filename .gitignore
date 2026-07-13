@@ -16,3 +16,6 @@
 ._.DS_Store
 Thumbs.db
 desktop.ini
+
+# Ignorer uniquement les fichiers firmware (.zip), mais pas le reste du dossier (comme version.json)
+firmware/firmware-*.zip
