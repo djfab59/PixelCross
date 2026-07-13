@@ -3,5 +3,6 @@
 
 void initSettings();
 void loopSettings();
+void startWifiConfigPortal();
 
 #endif

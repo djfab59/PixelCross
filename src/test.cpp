@@ -14,11 +14,11 @@ static bool prevR2 = HIGH;
 
 void initTest() {
   prevExitCombo = HIGH;
-  invertText = false; // S'assure que le texte est à l'endroit au lancement
+  invertText = false; // S'assure que le texte est a l'endroit au lancement
   testScoreVert = 0;
   testScoreRouge = 0;
 
-  // Mémorisation de l'état initial des boutons
+  // Memorisation de l'etat initial des boutons
   prevG  = digitalRead(BTN_GREEN_PIN);
   prevG1 = digitalRead(BTN_GREEN1_PIN);
   prevG2 = digitalRead(BTN_GREEN2_PIN);
@@ -26,7 +26,7 @@ void initTest() {
   prevR1 = digitalRead(BTN_RED1_PIN);
   prevR2 = digitalRead(BTN_RED2_PIN);
 
-  // On affiche les scores avec 1 décimale (format XX.X)
+  // On affiche les scores avec 1 decimale (format XX.X)
   afficherScoreDecimal7Seg((float)testScoreVert / 10.0, (float)testScoreRouge / 10.0, 1);
 }
 
@@ -45,7 +45,7 @@ void loopTest() {
   bool btnR1 = (actR1 == LOW);
   bool btnR2 = (actR2 == LOW);
   
-  // Détection des clics uniques (front descendant)
+  // Detection des clics uniques (front descendant)
   bool clicG  = (actG == LOW && prevG == HIGH);
   bool clicG1 = (actG1 == LOW && prevG1 == HIGH);
   bool clicG2 = (actG2 == LOW && prevG2 == HIGH);
@@ -53,7 +53,7 @@ void loopTest() {
   bool clicR1 = (actR1 == LOW && prevR1 == HIGH);
   bool clicR2 = (actR2 == LOW && prevR2 == HIGH);
   
-  // Pour quitter le menu test, on appuie sur Vert 1 + Vert 2 simultanément
+  // Pour quitter le menu test, on appuie sur Vert 1 + Vert 2 simultanement
   bool exitCombo = (btnG1 && btnG2);
 
   FastLED.clear();
@@ -62,11 +62,11 @@ void loopTest() {
     drawCenteredString("QUIT", 2, CRGB::White);
     if (prevExitCombo == HIGH) {
       declencherBip(800, 50);
-      afficherScore7Seg(-1, -1); // Éteint les afficheurs
+      afficherScore7Seg(-1, -1); // Eteint les afficheurs
       currentState = STATE_MENU;
     }
   } else {
-    // --- LOGIQUE D'INCRÉMENTATION DES AFFICHEURS ---
+    // --- LOGIQUE D'INCREMENTATION DES AFFICHEURS ---
     bool scoreUpdated = false;
     if (clicG)  { testScoreVert = (testScoreVert + 100) % 1000; scoreUpdated = true; } // +10.0
     if (clicG1) { testScoreVert = (testScoreVert + 1)   % 1000; scoreUpdated = true; } // +0.1
@@ -81,7 +81,7 @@ void loopTest() {
     }
 
     // --- AFFICHAGE SUR LA MATRICE LED ---
-    // On affiche un message pour chaque bouton pressé
+    // On affiche un message pour chaque bouton presse
     if (btnG) {
       drawCenteredString("VERT", 2, CRGB::Green);
     } else if (btnG1) {

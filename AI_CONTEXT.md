@@ -11,6 +11,7 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
   - Joueur Vert : GPIO 0 (Action/Validation), GPIO 1 (Menu Gauche), GPIO 2 (Menu Droite)
   - Joueur Rouge : GPIO 5 (Action), GPIO 6 (Futur Gauche), GPIO 7 (Futur Droite)
 - **Audio** : Buzzer passif sur GPIO 4 (contrôlé via PWM matériel natif `ledc` pour être non-bloquant).
+- **WiFi** : Le module WiFi de l'ESP32-C3 est sensible. Une réduction de la puissance d'émission (`setTxPower`) est **obligatoire** pour un fonctionnement stable, surtout en mode Point d'Accès.
 
 ## Architecture et Choix Techniques
 - **Framework** : Arduino (via PlatformIO).
@@ -19,9 +20,12 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Espace de Jeu (Track)** : La piste fait 64 LEDs de long, utilisant la ligne 4 (camp gauche) et la ligne 5 (camp droit).
 - **Interface (HUD)** : Les vies du joueur Vert (Gauche) sont affichées sur la ligne 1. Celles du joueur Rouge (Droit) sur la ligne 8.
 - **Score Externe** : Le nombre de victoires (Tournoi) est conservé sur les modules 7 segments (configurable via `DIGITS_PER_MODULE`).
+- **Gestion WiFi** : La bibliothèque `tzapu/WiFiManager` est utilisée pour créer un portail de configuration captif.
+- **Machine d'états** : Le projet utilise une machine d'états simple (`enum AppState`) pour gérer les différents modes : `STATE_MENU`, `STATE_PONG`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`.
+- **Menu Réglages** : Permet de configurer la luminosité (sauvegardée en mémoire NVS), de lancer le portail de configuration WiFi, et de tester la connexion internet.
 
 ## Règles de Code (Coding Guidelines)
-1. **Non-bloquant** : L'utilisation de la fonction `delay()` est **strictement interdite** dans la boucle principale (`loop()`) pendant le jeu, afin de ne pas rater les inputs ultra-rapides des boutons. Tout ce qui touche à la physique ou aux animations temporelles doit utiliser `millis()`.
+1. **Non-bloquant** : L'utilisation de la fonction `delay()` est **strictement interdite** dans la boucle de jeu principale (`loopPong` pendant les échanges) afin de ne pas rater les inputs. Les `delay()` sont tolérés pour des animations courtes et bloquantes (ex: fin de partie, messages temporaires) où la réactivité n'est pas critique.
 2. **Anti-rebond / Inputs** : Les boutons utilisent les pull-ups internes (`INPUT_PULLUP`). La détection se fait sur le front descendant (passage de `HIGH` à `LOW`) en comparant l'état actuel et précédent, pour éviter la triche (maintien du bouton).
 3. **Langue** : Les noms de variables, fonctions et les commentaires doivent être en **Français**. Le code doit être clair et organisé par blocs logiques.
 4. **Rendu FastLED** : Le cycle d'affichage doit toujours respecter ce pattern : calcul de la logique -> `FastLED.clear()` -> application des couleurs -> `FastLED.show()`.

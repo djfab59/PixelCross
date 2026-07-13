@@ -1,17 +1,17 @@
 #include <Arduino.h>
 #include <FastLED.h>
-#include <Preferences.h> // Ajout de la bibliothèque pour la mémoire NVS
+#include <Preferences.h>
 #include "shared.h"
 #include "pong.h"
 #include "settings.h"
 #include "test.h"
 
-// Le tableau qui va contenir l'état de chaque LED
+// Le tableau qui va contenir l'etat de chaque LED
 CRGB leds[NUM_LEDS];
-Preferences preferences; // Objet pour gérer la sauvegarde en mémoire
+Preferences preferences; // Objet pour gerer la sauvegarde en memoire
 uint8_t brightness = 32; // Variable globale pour la luminosité (valeur par défaut)
 
-AppState currentState = STATE_MENU; // L'application démarre sur le Menu
+AppState currentState = STATE_MENU; // L'application demarre sur le Menu
 
 // Variables pour le système de Menu
 int menuIndex = 0;
@@ -20,28 +20,28 @@ bool prevGreen1 = HIGH;
 bool prevGreen2 = HIGH;
 bool prevGreen = HIGH;
 
-// Variables pour gérer le buzzer de manière non-bloquante
+// Variables pour gerer le buzzer de maniere non-bloquante
 unsigned long timerBuzzer = 0;
 bool buzzerActif = false;
 bool effetPouvoirActif = false;
 unsigned long debutEffetPouvoir = 0;
 
-// Nouvelles variables pour le bip double (Doulin)
+// Variables pour le bip double
 unsigned int freqBip2 = 0;
 unsigned long dureeBip2 = 0;
 bool attenteBip2 = false;
 
-// Fonction pour déclencher un bip sans le paramètre de durée (qui bug souvent sur ESP32)
+// Fonction pour declencher un bip sans le parametre de duree (qui bug souvent sur ESP32)
 void declencherBip(unsigned int frequence, unsigned long duree) {
   effetPouvoirActif = false; // Stoppe l'effet pouvoir si un bip normal prioritaire doit jouer
   attenteBip2 = false; // Annule un bip double en attente
   ledcWriteTone(BUZZER_CHANNEL, frequence); // Utilisation de l'API PWM native
-  ledcWrite(BUZZER_CHANNEL, 127); // Force le rapport cyclique à 50% (sur 255) pour créer le son
+  ledcWrite(BUZZER_CHANNEL, 127); // Force le rapport cyclique a 50% (sur 255) pour creer le son
   timerBuzzer = millis() + duree;
   buzzerActif = true;
 }
 
-// Fonction pour déclencher un son en deux temps
+// Fonction pour declencher un son en deux temps
 void declencherBipDouble(unsigned int f1, unsigned int f2, unsigned long d1, unsigned long d2) {
   effetPouvoirActif = false;
   freqBip2 = f2;
@@ -53,7 +53,7 @@ void declencherBipDouble(unsigned int f1, unsigned int f2, unsigned long d1, uns
   buzzerActif = true;
 }
 
-// Fonction pour déclencher l'effet sonore spécial du pouvoir (Grave -> Aigu -> Grave)
+// Fonction pour declencher l'effet sonore special du pouvoir (Grave -> Aigu -> Grave)
 void declencherEffetPouvoir() {
   effetPouvoirActif = true;
   buzzerActif = false; // Stoppe tout bip standard en cours
@@ -61,19 +61,19 @@ void declencherEffetPouvoir() {
   debutEffetPouvoir = millis();
 }
 
-// Fonction magique pour convertir des coordonnées (X, Y) en index 1D physique
+// Fonction magique pour convertir des coordonnees (X, Y) en index 1D physique
 uint16_t XY(uint8_t x, uint8_t y) {
   uint16_t i;
   
-  // On repasse en base 0 pour les calculs mathématiques internes
+  // On repasse en base 0 pour les calculs mathematiques internes
   uint8_t internalX = x - 1;
   uint8_t internalY = y - 1;
 
-  // Si la colonne est paire (0, 2, 4...), le câblage descend
+  // Si la colonne est paire (0, 2, 4...), le cablage descend
   if (internalX % 2 == 0) {
     i = (internalX * MATRIX_HEIGHT) + internalY;
   } 
-  // Si la colonne est impaire (1, 3, 5...), le câblage remonte
+  // Si la colonne est impaire (1, 3, 5...), le cablage remonte
   else {
     i = (internalX * MATRIX_HEIGHT) + (MATRIX_HEIGHT - 1 - internalY);
   }
@@ -81,8 +81,8 @@ uint16_t XY(uint8_t x, uint8_t y) {
 }
 
 // --- POLICE ET AFFICHAGE TEXTE ---
-bool invertText = false; // Permet d'écrire à l'envers pour le joueur 2
-// Mini-police de caractères 3x5 (A-Z, 0-9) optimisée bit par bit
+bool invertText = false; // Permet d'ecrire a l'envers pour le joueur 2
+// Mini-police de caracteres 3x5 (A-Z, 0-9) optimisee bit par bit
 const uint8_t police3x5[36][5] = {
   {0b010, 0b101, 0b111, 0b101, 0b101}, // A
   {0b110, 0b101, 0b110, 0b101, 0b110}, // B
@@ -104,7 +104,7 @@ const uint8_t police3x5[36][5] = {
   {0b110, 0b101, 0b110, 0b101, 0b101}, // R
   {0b011, 0b100, 0b010, 0b001, 0b110}, // S
   {0b111, 0b010, 0b010, 0b010, 0b010}, // T
-  {0b101, 0b101, 0b101, 0b101, 0b011}, // U
+  {0b101, 0b101, 0b101, 0b101, 0b111}, // U
   {0b101, 0b101, 0b101, 0b101, 0b010}, // V
   {0b101, 0b101, 0b101, 0b111, 0b101}, // W
   {0b101, 0b101, 0b010, 0b101, 0b101}, // X
@@ -122,7 +122,7 @@ const uint8_t police3x5[36][5] = {
   {0b111, 0b101, 0b111, 0b001, 0b111}  // 9
 };
 
-// Dessine un caractère à des coordonnées (x,y)
+// Dessine un caractere a des coordonnees (x,y)
 void drawChar(char c, int x, int y, CRGB color) {
   int idx = -1;
   if (c >= 'A' && c <= 'Z') idx = c - 'A';
@@ -147,7 +147,6 @@ void drawChar(char c, int x, int y, CRGB color) {
   }
 }
 
-// Dessine un mot
 void drawString(const char* str, int x, int y, CRGB color) {
   int i = 0;
   while (str[i] != '\0') {
@@ -156,8 +155,7 @@ void drawString(const char* str, int x, int y, CRGB color) {
     i++;
   }
 }
-
-// Calcule la largeur du mot et le centre parfaitement sur l'écran
+// Calcule la largeur du mot et le centre parfaitement sur l'ecran
 void drawCenteredString(const char* str, int y, CRGB color) {
   int len = 0, i = 0;
   while(str[i] != '\0') { len++; i++; }
@@ -167,8 +165,8 @@ void drawCenteredString(const char* str, int y, CRGB color) {
 }
 
 // --- GESTION DES AFFICHEURS 7 SEGMENTS (74HC595) ---
-// Dictionnaire standard pour allumer les segments (A à G) des chiffres 0 à 9
-// Les afficheurs sont à "anode commune", la logique est donc inversée (0 = Allumé, 1 = Eteint)
+// Dictionnaire standard pour allumer les segments (A a G) des chiffres 0 a 9
+// Les afficheurs sont a "anode commune", la logique est donc inversee (0 = Allume, 1 = Eteint)
 const uint8_t table7Seg[11] = {
   0b11000000, // 0
   0b11111001, // 1
@@ -187,7 +185,7 @@ void afficherScore7Seg(int scoreVert, int scoreRouge) {
   digitalWrite(PIN_LOAD, LOW);
   
   // Envoi dynamique selon le nombre de digits par module (DIGITS_PER_MODULE)
-  // Ordre : Joueur Rouge d'abord (car c'est le dernier dans la chaîne Daisy Chain)
+  // Ordre : Joueur Rouge d'abord (car c'est le dernier dans la chaine Daisy Chain)
   int divRouge = 1;
   for (int i = 0; i < DIGITS_PER_MODULE; i++) {
     uint8_t digit = (scoreRouge >= 0) ? table7Seg[(scoreRouge / divRouge) % 10] : table7Seg[10];
@@ -206,9 +204,9 @@ void afficherScore7Seg(int scoreVert, int scoreRouge) {
   digitalWrite(PIN_LOAD, HIGH);
 }
 
-// Nouvelle fonction pour gérer les nombres à virgule
+// Nouvelle fonction pour gerer les nombres a virgule
 void afficherScoreDecimal7Seg(float scoreVert, float scoreRouge, int decimales) {
-  // Multiplicateur pour transformer le float en int (ex: 9.99 avec 2 décimales -> 9.99 * 100 = 999)
+  // Multiplicateur pour transformer le float en int (ex: 9.99 avec 2 decimales -> 9.99 * 100 = 999)
   int multiplicateur = pow(10, decimales);
   int intScoreVert = (scoreVert >= 0) ? round(scoreVert * multiplicateur) : -1;
   int intScoreRouge = (scoreRouge >= 0) ? round(scoreRouge * multiplicateur) : -1;
@@ -219,9 +217,9 @@ void afficherScoreDecimal7Seg(float scoreVert, float scoreRouge, int decimales) 
   int divRouge = 1;
   for (int i = 0; i < DIGITS_PER_MODULE; i++) {
     uint8_t digit = (intScoreRouge >= 0) ? table7Seg[(intScoreRouge / divRouge) % 10] : table7Seg[10];
-    // Si on est sur le digit qui doit avoir le point, on force son bit à 0
+    // Si on est sur le digit qui doit avoir le point, on force son bit a 0
     if (intScoreRouge >= 0 && i == decimales) {
-      digit &= 0b01111111; // Met le bit du point à 0 (allumé) sans toucher aux autres
+      digit &= 0b01111111; // Met le bit du point a 0 (allume) sans toucher aux autres
     }
     shiftOut(PIN_SDI, PIN_SCLK, MSBFIRST, digit);
     divRouge *= 10;
@@ -244,12 +242,13 @@ void afficherScoreDecimal7Seg(float scoreVert, float scoreRouge, int decimales) 
 void setup() {
   Serial.begin(115200);
   
-  // --- CHARGEMENT DES PRÉFÉRENCES UTILISATEUR ---
+  // --- CHARGEMENT DES PREFERENCES UTILISATEUR ---
   preferences.begin("pixelcross", false);
   brightness = preferences.getUChar("brightness", 32);
   preferences.end();
 
   randomSeed(esp_random());
+  FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(leds, NUM_LEDS);
   
   pinMode(BTN_GREEN_PIN, INPUT_PULLUP);
   pinMode(BTN_GREEN1_PIN, INPUT_PULLUP);
@@ -267,11 +266,13 @@ void setup() {
 
   ledcSetup(BUZZER_CHANNEL, 2000, 8);
   ledcAttachPin(BUZZER_PIN, BUZZER_CHANNEL);
-  FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(leds, NUM_LEDS);
   
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 2500); 
   
   FastLED.setBrightness(brightness); 
+
+  // Bip de demarrage
+  declencherBipDouble(800, 1200, 80, 120);
 }
 
 void drawMenu() {
@@ -279,7 +280,7 @@ void drawMenu() {
   if (menuIndex == 0) {
     drawCenteredString("PONG", 2, CRGB::Green);
   } else if (menuIndex == 1) {
-    drawCenteredString("REGLAGE", 2, CRGB::Green);
+    drawCenteredString("REGLAGES", 2, CRGB::Green);
   } else if (menuIndex == 2) {
     drawCenteredString("TEST", 2, CRGB::Green);
   }
@@ -325,14 +326,14 @@ void loopMenu() {
 void gererBuzzer() {
   if (buzzerActif && millis() >= timerBuzzer) {
     if (attenteBip2) {
-      // Déclenche la deuxième partie du son
+      // Declenche la deuxieme partie du son
       ledcWriteTone(BUZZER_CHANNEL, freqBip2);
       ledcWrite(BUZZER_CHANNEL, 127);
       timerBuzzer = millis() + dureeBip2;
       attenteBip2 = false;
     } else {
       ledcWriteTone(BUZZER_CHANNEL, 0); // Stoppe la fréquence PWM
-      ledcWrite(BUZZER_CHANNEL, 0);     // Coupe totalement le courant (0%) pour protéger le transistor
+      ledcWrite(BUZZER_CHANNEL, 0);     // Coupe totalement le courant (0%) pour proteger le transistor
       buzzerActif = false;
     }
   }
@@ -343,17 +344,17 @@ void gererBuzzer() {
     if (tempsEcoule <= 1000) { // L'effet dure exactement 1 seconde (1000 ms)
       unsigned int frequenceActuelle;
       if (tempsEcoule <= 500) {
-        // Première moitié (0 à 500ms) : On monte de 100Hz à 2000Hz
+        // Premiere moitie (0 a 500ms) : On monte de 100Hz a 2000Hz
         frequenceActuelle = map(tempsEcoule, 0, 500, 100, 2000);
       } else {
-        // Deuxième moitié (501 à 1000ms) : On redescend de 2000Hz à 100Hz
+        // Deuxieme moitie (501 a 1000ms) : On redescend de 2000Hz a 100Hz
         frequenceActuelle = map(tempsEcoule, 500, 1000, 2000, 100);
       }
-      // On met à jour la fréquence du buzzer en temps réel !
+      // On met a jour la frequence du buzzer en temps reel !
       ledcWriteTone(BUZZER_CHANNEL, frequenceActuelle);
       ledcWrite(BUZZER_CHANNEL, 127);
     } else {
-      // L'effet est terminé
+      // L'effet est termine
       effetPouvoirActif = false;
       ledcWriteTone(BUZZER_CHANNEL, 0);
       ledcWrite(BUZZER_CHANNEL, 0);
@@ -362,7 +363,7 @@ void gererBuzzer() {
 }
 
 void loop() {
-  gererBuzzer(); // Le buzzer tourne en tâche de fond quoiqu'il arrive
+  gererBuzzer();
 
   if (currentState == STATE_MENU) {
     loopMenu();
@@ -372,5 +373,10 @@ void loop() {
     loopSettings();
   } else if (currentState == STATE_TEST) {
     loopTest();
+  } else if (currentState == STATE_WIFI_CONFIG) {
+    // Etat dedie a la configuration WiFi.
+    // On ne fait RIEN d'autre pour donner toutes les ressources au portail WiFi.
+    // La fonction est bloquante et changera l'etat elle-meme a la fin.
+    startWifiConfigPortal();
   }
 }

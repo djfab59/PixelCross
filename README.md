@@ -10,6 +10,10 @@ PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, joua
 - **Mode "Mort Subite" :** Une fois la vitesse maximale de la balle atteinte, la taille des raquettes se réduit toutes les deux frappes (passant de 5 LEDs à 2 LEDs) pour forcer l'erreur.
 - **Vies et Mode Tournoi :** 3 vies par joueur affichées sur la matrice (en rose). Les afficheurs 7 segments externes agissent comme un compteur global de victoires !
 - **Verrou de Sécurité :** L'engagement est bloqué tant que le joueur en défense n'a pas signalé qu'il est prêt.
+- **Menu de Réglages :**
+  - Ajustement de la luminosité (avec correction gamma et sauvegarde).
+  - Configuration WiFi simplifiée via un portail captif (`WiFiManager`).
+  - Test de la connectivité Internet.
 - **Pouvoirs Aléatoires :** Frappez la balle sur la dernière LED pour obtenir un "Dash", une "Invisibilité" ou un "Bouclier" !
 - **Animations :** Clignotement de point, balayage coloré (wipe) pour le grand gagnant de la partie.
 - **Audio Dynamique :** Effets sonores non-bloquants avec tension croissante et fanfare de victoire.
@@ -64,10 +68,24 @@ Ce projet est conçu avec **PlatformIO** (VS Code).
 ### Dépendances
 La librairie FastLED sera téléchargée automatiquement par PlatformIO selon la configuration du fichier `platformio.ini` :
 * `fastled/FastLED`
+* `tzapu/WiFiManager`
 
 ## 🎮 Comment Jouer ?
 
+### 🧭 Menu Principal
+Au démarrage, vous êtes dans le menu principal. Utilisez les boutons **Vert 1** (Gauche) et **Vert 2** (Droite) pour naviguer entre les options (`PONG`, `REGLAGES`, `TEST`) et le bouton **Vert** pour valider votre choix.
+
 **Navigation / Retour au menu** : À tout moment (dans le menu ou en plein jeu), appuyez simultanément sur **Vert 1** et **Vert 2** pour revenir au menu principal (cela réinitialise les scores du tournoi).
+
+### ⚙️ Menu Réglages
+Dans ce menu, vous pouvez :
+- **LIGHT :** Ajuster la luminosité de la matrice. L'appui long est supporté pour un réglage rapide. La valeur est sauvegardée.
+- **WIFI :** Lancer le portail de configuration. Connectez-vous au réseau `PixelCross-Setup` avec votre téléphone pour entrer les identifiants de votre WiFi.
+- **UPDATE :** Tester si la connexion à Internet est fonctionnelle. Le mot "UPDATE" devient vert si le test réussit, rouge sinon.
+
+---
+
+### 🏓 Le Jeu (Pong)
 
 **1. Démarrage et Engagement**
 - Le joueur qui vient de perdre le point (ou la partie précédente) obtient l'avantage de l'engagement. La balle prend sa couleur.

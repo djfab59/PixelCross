@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-// Définition commune des broches matérielles
+// Definition commune des broches materielles
 #define LED_DATA_PIN 3
 #define BUZZER_PIN 4
 #define BUZZER_CHANNEL 0
@@ -21,9 +21,9 @@
 #define PIN_SDI 8
 #define PIN_SCLK 9
 #define PIN_LOAD 10
-#define DIGITS_PER_MODULE 3 // Nombre de chiffres par afficheur (à modifier si changement de matériel)
+#define DIGITS_PER_MODULE 3 // Nombre de chiffres par afficheur (a modifier si changement de materiel)
 
-// Paramètres de la matrice
+// Parametres de la matrice
 #define MATRIX_WIDTH 32
 #define MATRIX_HEIGHT 8
 #define NUM_LEDS (MATRIX_WIDTH * MATRIX_HEIGHT)
@@ -33,12 +33,13 @@ enum AppState {
   STATE_MENU,
   STATE_PONG,
   STATE_SETTINGS,
-  STATE_TEST
+  STATE_TEST,
+  STATE_WIFI_CONFIG
   // On ajoutera les prochains jeux ici
 };
 extern AppState currentState;
 
-// Déclaration des variables et fonctions globales partagées
+// Declaration des variables et fonctions globales partagees
 extern CRGB leds[NUM_LEDS];
 extern uint8_t brightness;
 
@@ -46,8 +47,9 @@ uint16_t XY(uint8_t x, uint8_t y);
 void declencherBip(unsigned int frequence, unsigned long duree);
 void declencherBipDouble(unsigned int f1, unsigned int f2, unsigned long d1, unsigned long d2);
 void declencherEffetPouvoir();
+void gererBuzzer();
 
-// Déclaration des fonctions d'affichage de texte pour qu'elles soient utilisables partout
+// Declaration des fonctions d'affichage de texte pour qu'elles soient utilisables partout
 void drawChar(char c, int x, int y, CRGB color);
 void drawString(const char* str, int x, int y, CRGB color);
 void drawCenteredString(const char* str, int y, CRGB color);

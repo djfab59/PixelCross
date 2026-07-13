@@ -51,11 +51,11 @@ void initPong() {
   invisibiliteRestante = 0;
   verrouService = true;
   prevExitCombo = HIGH;
-  alerteVerrouActive = false; // On s'assure que l'animation est stoppée
+  alerteVerrouActive = false; // On s'assure que l'animation est stoppee
   timerAlerteVerrou = 0;
   compteurAlerteVerrou = 0;
   
-  // On mémorise l'état actuel des boutons pour éviter un déclenchement instantané
+  // On memorise l'etat actuel des boutons pour eviter un declenchement instantane
   etatPrecedentVert = digitalRead(BTN_GREEN_PIN);
   etatPrecedentRouge = digitalRead(BTN_RED_PIN);
 
@@ -70,13 +70,13 @@ void loopPong() {
 
   if (exitCombo && prevExitCombo == HIGH) {
     declencherBip(800, 50);
-    afficherScore7Seg(-1, -1); // Éteint les 7 segments
-    victoiresVert = 0; // Réinitialise les scores du tournoi en quittant
+    afficherScore7Seg(-1, -1); // Eteint les 7 segments
+    victoiresVert = 0; // Reinitialise les scores du tournoi en quittant
     victoiresRouge = 0;
     joueurEngagement = -1; // Vert commencera de nouveau si on relance depuis le menu
     currentState = STATE_MENU;
     prevExitCombo = exitCombo;
-    return; // On quitte immédiatement et retourne au menu
+    return; // On quitte immediatement et retourne au menu
   }
   prevExitCombo = exitCombo;
 
@@ -84,7 +84,7 @@ void loopPong() {
   bool etatActuelVert = digitalRead(BTN_GREEN_PIN);
   bool etatActuelRouge = digitalRead(BTN_RED_PIN);
 
-  // Détection du front descendant (moment précis de l'appui) pour éviter la triche du bouton maintenu
+  // Detection du front descendant (moment precis de l'appui) pour eviter la triche du bouton maintenu
   bool clicVert = (etatActuelVert == LOW && etatPrecedentVert == HIGH);
   bool clicRouge = (etatActuelRouge == LOW && etatPrecedentRouge == HIGH);
 
@@ -96,7 +96,7 @@ void loopPong() {
     CRGB couleurGagnant = (viesVert <= 0) ? CRGB::Red : CRGB::Green;
     CRGB couleurDouce = (viesVert <= 0) ? CRGB(40, 0, 0) : CRGB(0, 40, 0); // Couleur assombrie
     
-    // Clignotement doux de l'écran en attendant la nouvelle partie
+    // Clignotement doux de l'ecran en attendant la nouvelle partie
     if (millis() % 1000 < 500) {
       for (int i = 0; i < NUM_LEDS; i++) leds[i] = couleurDouce;
     } else {
@@ -117,7 +117,7 @@ void loopPong() {
     // Logique d'engagement
     if (joueurEngagement == -1) {
       if (clicRouge) verrouService = false;
-      if (clicVert && !alerteVerrouActive) { // On ne peut pas déclencher si l'alerte est déjà en cours
+      if (clicVert && !alerteVerrouActive) { // On ne peut pas declencher si l'alerte est deja en cours
         if (verrouService) {
           alerteVerrouActive = true;
           timerAlerteVerrou = millis();
@@ -151,17 +151,17 @@ void loopPong() {
         timerAlerteVerrou = millis();
         compteurAlerteVerrou++;
 
-        if (compteurAlerteVerrou % 2 != 0) { // Phase 1: Bip + LED éteinte
+        if (compteurAlerteVerrou % 2 != 0) { // Phase 1: Bip + LED eteinte
           ledcWriteTone(BUZZER_CHANNEL, 150);
           ledcWrite(BUZZER_CHANNEL, 127);
-        } else { // Phase 2: Pas de bip + LED allumée
+        } else { // Phase 2: Pas de bip + LED allumee
           ledcWriteTone(BUZZER_CHANNEL, 0);
           ledcWrite(BUZZER_CHANNEL, 0);
         }
 
         if (compteurAlerteVerrou >= 6) { // 3 clignotements complets (6 phases)
           alerteVerrouActive = false;
-          // On s'assure que le son est coupé et que la LED est visible à la fin
+          // On s'assure que le son est coupe et que la LED est visible a la fin
           ledcWriteTone(BUZZER_CHANNEL, 0);
           ledcWrite(BUZZER_CHANNEL, 0);
         }
@@ -298,9 +298,9 @@ void loopPong() {
           declencherEffetPouvoir(); 
         } 
         else {
-          // On réduit ENCORE PLUS la luminosité du trait. La réduction précédente à 150
-          // n'était pas suffisante pour empêcher la chute de tension sur la matrice.
-          // Une valeur de 80 devrait être beaucoup plus stable.
+          // On reduit ENCORE PLUS la luminosite du trait. La reduction precedente a 150
+          // n'etait pas suffisante pour empecher la chute de tension sur la matrice.
+          // Une valeur de 80 devrait etre beaucoup plus stable.
           CRGB couleurPoint = vertARate ? CRGB(80, 0, 0) : CRGB(0, 80, 0);
           joueurEngagement = vertARate ? -1 : 1;
           
@@ -308,7 +308,7 @@ void loopPong() {
           else viesRouge--;
 
           if (viesVert <= 0 || viesRouge <= 0) {
-            // Fin de partie : on incrémente le compteur de matchs gagnés
+            // Fin de partie : on incremente le compteur de matchs gagnes
             if (viesVert <= 0) victoiresRouge++;
             else victoiresVert++;
             
@@ -388,10 +388,10 @@ void loopPong() {
     }
   }
 
-  // 4. Dessin de l'écran
+  // 4. Dessin de l'ecran
   FastLED.clear();
-  // Augmentons la luminosité des raquettes pour voir si le scintillement disparaît
-  // Une valeur comme 80 est assez lumineuse pour être stable.
+  // Augmentons la luminosite des raquettes pour voir si le scintillement disparait
+  // Une valeur comme 80 est assez lumineuse pour etre stable.
   for(int x = 1; x <= tailleRaquette; x++) leds[XY(x, 4)] = CRGB(0, 80, 0);   
   for(int x = 32 - tailleRaquette + 1; x <= 32; x++) leds[XY(x, 5)] = CRGB(80, 0, 0); 
 
@@ -408,10 +408,10 @@ void loopPong() {
   else if (pouvoirRouge == 3) leds[XY(30, 7)] = CRGB::Blue; 
 
   if (enAttenteEngagement && verrouService) {
-    // On gère l'affichage du verrou en fonction de l'animation d'alerte
+    // On gere l'affichage du verrou en fonction de l'animation d'alerte
     bool afficherVerrou = true;
     if (alerteVerrouActive && compteurAlerteVerrou % 2 != 0) {
-      afficherVerrou = false; // On n'affiche pas le verrou pendant la phase "éteinte" du clignotement
+      afficherVerrou = false; // On n'affiche pas le verrou pendant la phase "eteinte" du clignotement
     }
 
     if (afficherVerrou) {
