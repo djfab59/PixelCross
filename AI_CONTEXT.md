@@ -20,9 +20,11 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Espace de Jeu (Track)** : La piste fait 64 LEDs de long, utilisant la ligne 4 (camp gauche) et la ligne 5 (camp droit).
 - **Interface (HUD)** : Les vies du joueur Vert (Gauche) sont affichées sur la ligne 1. Celles du joueur Rouge (Droit) sur la ligne 8.
 - **Score Externe** : Le nombre de victoires (Tournoi) est conservé sur les modules 7 segments (configurable via `DIGITS_PER_MODULE`).
+- **Table de partition** : Le projet utilise un fichier `default_ota.csv` pour définir une structure de mémoire compatible avec les mises à jour OTA.
 - **Gestion WiFi** : La bibliothèque `tzapu/WiFiManager` est utilisée pour créer un portail de configuration captif.
-- **Machine d'états** : Le projet utilise une machine d'états simple (`enum AppState`) pour gérer les différents modes : `STATE_MENU`, `STATE_PONG`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`.
-- **Menu Réglages** : Permet de configurer la luminosité (sauvegardée en mémoire NVS), de lancer le portail de configuration WiFi, et de tester la connexion internet.
+- **Mises à jour OTA** : Le système peut se mettre à jour via WiFi en interrogeant l'API GitHub pour la "dernière release". Il télécharge le binaire, vérifie son intégrité avec une empreinte MD5, et l'installe. La version et le MD5 sont gérés par un script Python (`copy_firmware.py`) qui s'exécute après la compilation.
+- **Machine d'états** : Le projet utilise une machine d'états simple (`enum AppState`) pour gérer les différents modes : `STATE_MENU`, `STATE_PONG`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
+- **Menu Réglages** : Permet de configurer la luminosité (sauvegardée en mémoire NVS), de lancer le portail de configuration WiFi, et de lancer le processus de mise à jour OTA.
 
 ## Règles de Code (Coding Guidelines)
 1. **Non-bloquant** : L'utilisation de la fonction `delay()` est **strictement interdite** dans la boucle de jeu principale (`loopPong` pendant les échanges) afin de ne pas rater les inputs. Les `delay()` sont tolérés pour des animations courtes et bloquantes (ex: fin de partie, messages temporaires) où la réactivité n'est pas critique.

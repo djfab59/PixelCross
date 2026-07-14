@@ -10,10 +10,11 @@ PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, joua
 - **Mode "Mort Subite" :** Une fois la vitesse maximale de la balle atteinte, la taille des raquettes se réduit toutes les deux frappes (passant de 5 LEDs à 2 LEDs) pour forcer l'erreur.
 - **Vies et Mode Tournoi :** 3 vies par joueur affichées sur la matrice (en rose). Les afficheurs 7 segments externes agissent comme un compteur global de victoires !
 - **Verrou de Sécurité :** L'engagement est bloqué tant que le joueur en défense n'a pas signalé qu'il est prêt.
+- **Mises à jour OTA :** Le firmware peut être mis à jour sans fil via WiFi directement depuis les "releases" du dépôt GitHub.
 - **Menu de Réglages :**
   - Ajustement de la luminosité (avec correction gamma et sauvegarde).
   - Configuration WiFi simplifiée via un portail captif (`WiFiManager`).
-  - Test de la connectivité Internet.
+  - Lancement de la vérification et de l'installation des mises à jour.
 - **Pouvoirs Aléatoires :** Frappez la balle sur la dernière LED pour obtenir un "Dash", une "Invisibilité" ou un "Bouclier" !
 - **Animations :** Clignotement de point, balayage coloré (wipe) pour le grand gagnant de la partie.
 - **Audio Dynamique :** Effets sonores non-bloquants avec tension croissante et fanfare de victoire.
@@ -66,9 +67,10 @@ Ce projet est conçu avec **PlatformIO** (VS Code).
 4. Cliquez sur le bouton **Upload and Monitor** (la flèche en bas de l'écran) pour compiler le projet et le flasher sur la carte.
 
 ### Dépendances
-La librairie FastLED sera téléchargée automatiquement par PlatformIO selon la configuration du fichier `platformio.ini` :
+Les librairies suivantes seront téléchargées automatiquement par PlatformIO :
 * `fastled/FastLED`
 * `tzapu/WiFiManager`
+* `bblanchon/ArduinoJson`
 
 ## 🎮 Comment Jouer ?
 
@@ -81,7 +83,22 @@ Au démarrage, vous êtes dans le menu principal. Utilisez les boutons **Vert 1*
 Dans ce menu, vous pouvez :
 - **LIGHT :** Ajuster la luminosité de la matrice. L'appui long est supporté pour un réglage rapide. La valeur est sauvegardée.
 - **WIFI :** Lancer le portail de configuration. Connectez-vous au réseau `PixelCross-Setup` avec votre téléphone pour entrer les identifiants de votre WiFi.
-- **UPDATE :** Tester si la connexion à Internet est fonctionnelle. Le mot "UPDATE" devient vert si le test réussit, rouge sinon.
+- **UPDATE :** Lance la procédure de mise à jour Over-The-Air (OTA). L'appareil se connecte à GitHub, vérifie si une nouvelle version est disponible et, le cas échéant, la télécharge et l'installe automatiquement avant de redémarrer.
+
+## 🧑‍💻 Pour les développeurs : Processus de mise à jour OTA
+
+Le système est conçu pour être simple à mettre à jour.
+
+1.  **Incrémenter la version :** Avant de compiler une nouvelle version, modifiez la constante `FIRMWARE_VERSION` dans le fichier `src/shared.h`.
+2.  **Compiler le projet :** Lancez une compilation. Le script `copy_firmware.py` va automatiquement :
+    -   Créer un fichier `firmware/firmware-esp32-c3-devkitm-1.zip`.
+    -   Calculer son empreinte MD5.
+    -   Mettre à jour le fichier `firmware/version.json` avec le nouveau numéro de version et l'empreinte MD5.
+3.  **Créer une "Release" sur GitHub :**
+    -   Créez une nouvelle "release" sur le dépôt GitHub.
+    -   Attachez-y les deux fichiers générés : `firmware/version.json` et `firmware/firmware-esp32-c3-devkitm-1.zip`.
+    -   **Important :** Cochez la case "Set as the latest release".
+4.  Les appareils existants trouveront et installeront la mise à jour via le menu "UPDATE".
 
 ---
 

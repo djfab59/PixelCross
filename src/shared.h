@@ -2,7 +2,7 @@
 #define SHARED_H
 
 // Version actuelle du firmware. A incrementer a chaque nouvelle version.
-#define FIRMWARE_VERSION 1
+#define FIRMWARE_VERSION 3
 
 #include <Arduino.h>
 #include <FastLED.h>

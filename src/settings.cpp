@@ -7,6 +7,7 @@
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
 #include <Update.h>
+#include <MD5Builder.h>
 
 static bool prevExitCombo = HIGH;
 static bool editingMode = false;
@@ -114,7 +115,7 @@ void initOtaUpdate() {
   FastLED.show();
 }
 
-void performOtaUpdate(String firmwareUrl) {
+void performOtaUpdate(String firmwareUrl, String md5) {
   Serial.println("Debut du telechargement de la mise a jour depuis " + firmwareUrl);
 
   FastLED.clear();
@@ -148,24 +149,69 @@ void performOtaUpdate(String firmwareUrl) {
       return;
     }
 
-    WiFiClient* stream = http.getStreamPtr();
-    size_t written = Update.writeStream(*stream);
+    // On ne fait plus confiance a Update.setMD5(). On va calculer le MD5 manuellement.
+    MD5Builder md5_calculator;
+    md5_calculator.begin();
 
-    if (written == contentLength) {
-      Serial.println("Telechargement complet.");
-    } else {
-      Serial.println("Erreur: Telechargement incomplet.");
-      otaCurrentState = OTA_FAIL;
-      return;
+    Serial.println("Debut de l'ecriture sur la flash...");
+    WiFiClient* stream = http.getStreamPtr();
+    
+    // Remplacer writeStream par une boucle manuelle pour plus de controle et de debug
+    size_t written = 0;
+    uint8_t buff[1024] = { 0 };
+
+    while (http.connected() && (written < contentLength)) {
+      // Attend que des donnees soient disponibles
+      size_t available = stream->available();
+      if (available) {
+        // Lit un morceau de donnees
+        size_t len = stream->readBytes(buff, min((size_t)sizeof(buff), available));
+        
+        // Ecrit le morceau sur la flash
+        if (Update.write(buff, len) != len) {
+          Serial.println("Erreur lors de l'ecriture d'un morceau sur la flash.");
+          Update.printError(Serial);
+          otaCurrentState = OTA_FAIL;
+          http.end();
+          return;
+        }
+        // On ajoute les donnees telechargees a notre propre calcul MD5
+        md5_calculator.add(buff, len);
+        written += len;
+      }
+      delay(1); // Laisse du temps aux autres process
     }
 
-    if (Update.end()) {
-      Serial.println("Mise a jour terminee avec succes !");
-      otaCurrentState = OTA_SUCCESS;
+    if (written == contentLength) {
+      Serial.printf("MD5 calcule : %s\n", Update.md5String().c_str());
+      md5_calculator.calculate();
+      String calculated_md5 = md5_calculator.toString();
+      Serial.printf("MD5 calcule (manuel) : %s\n", calculated_md5.c_str());
+      Serial.println("Telechargement et ecriture complets.");
+
+      // C'est ici qu'on fait notre propre verification, fiable.
+      if (calculated_md5.equalsIgnoreCase(md5)) {
+        Serial.println("Verification MD5 manuelle reussie !");
+        if (Update.end()) {
+          Serial.println("Mise a jour finalisee avec succes !");
+          otaCurrentState = OTA_SUCCESS;
+        } else {
+          Serial.println("Erreur lors de la finalisation de la mise a jour.");
+          Update.printError(Serial);
+          otaCurrentState = OTA_FAIL;
+        }
+      } else {
+        Serial.println("ERREUR: Verification MD5 manuelle echouee ! Le fichier est corrompu.");
+        Serial.printf("Attendu: %s\n", md5.c_str());
+        Update.abort(); // On annule la mise a jour pour ne pas corrompre le systeme.
+        otaCurrentState = OTA_FAIL;
+      }
     } else {
-      Serial.println("Erreur lors de la finalisation de la mise a jour.");
-      Update.printError(Serial);
+      Serial.printf("Erreur: Telechargement incomplet. Ecrit: %d, Attendu: %d\n", written, contentLength);
+      Update.abort(); // On annule la mise a jour
       otaCurrentState = OTA_FAIL;
+      http.end(); // Important de terminer la connexion http
+      return;
     }
 
   } else {
@@ -211,19 +257,33 @@ void loopOtaUpdate() {
         client.setInsecure();
         HTTPClient http;
         
+        Serial.println("URL de l'API: https://" + String(API_HOST) + API_URL);
         http.begin(client, API_HOST, 443, API_URL);
         // L'API GitHub requiert un User-Agent
         http.addHeader("User-Agent", "ESP32-OTA-Updater");
 
         int httpCode = http.GET();
+        Serial.printf("Reponse de l'API GitHub: HTTP %d\n", httpCode);
+
         if (httpCode == HTTP_CODE_OK) {
           // L'API peut renvoyer beaucoup de donnees, on utilise un document dynamique
-          DynamicJsonDocument doc(4096);
+          // On alloue un document JSON assez grand. StaticJsonDocument est plus explicite sur la taille,
+          // meme s'il est deprecie, on le remplace par le standard JsonDocument.
+          JsonDocument doc;
           DeserializationError error = deserializeJson(doc, http.getStream());
           http.end();
 
           if (error) {
-            Serial.printf("Erreur de deserialisation JSON: %s\n", error.c_str());
+            Serial.printf("Echec de l'analyse JSON: %s\n", error.c_str());
+            otaCurrentState = OTA_FAIL;
+            break;
+          }
+
+          Serial.println("Analyse JSON reussie.");
+
+          // Verifions si la cle 'assets' existe et si c'est un tableau (syntaxe moderne)
+          if (!doc["assets"].is<JsonArray>()) {
+            Serial.println("Erreur: La reponse JSON ne contient pas de tableau 'assets' valide.");
             otaCurrentState = OTA_FAIL;
             break;
           }
@@ -233,16 +293,24 @@ void loopOtaUpdate() {
           String firmware_url;
           String firmware_filename = String("firmware-") + PIO_ENV_NAME + ".zip";
 
-          for (JsonObject asset : doc["assets"].as<JsonArray>()) {
-            if (String(asset["name"]) == "version.json") {
+          Serial.println("Recherche des fichiers dans la release :");
+          Serial.println("- " + firmware_filename);
+          Serial.println("- version.json");
+
+          JsonArray assets = doc["assets"].as<JsonArray>();
+          for (JsonObject asset : assets) {
+            String asset_name = asset["name"].as<String>();
+            Serial.println("  -> Fichier trouve : " + asset_name);
+            if (asset_name == "version.json") {
               version_url = asset["browser_download_url"].as<String>();
             }
-            if (String(asset["name"]) == firmware_filename) {
+            if (asset_name == firmware_filename) {
               firmware_url = asset["browser_download_url"].as<String>();
             }
           }
 
           if (version_url.isEmpty() || firmware_url.isEmpty()) {
+            Serial.println("Resultat: version_url=" + version_url + ", firmware_url=" + firmware_url);
             Serial.println("Erreur: Impossible de trouver version.json ou le fichier firmware dans la derniere release.");
             otaCurrentState = OTA_FAIL;
             break;
@@ -250,6 +318,7 @@ void loopOtaUpdate() {
 
           // Maintenant qu'on a l'URL du version.json, on le telecharge
           http.begin(client, version_url);
+          http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Important pour suivre la redirection de GitHub
           httpCode = http.GET();
           if (httpCode != HTTP_CODE_OK) {
              Serial.printf("Erreur au telechargement de version.json: HTTP %d\n", httpCode);
@@ -257,13 +326,34 @@ void loopOtaUpdate() {
              break;
           }
 
-          DynamicJsonDocument version_doc(256);
-          deserializeJson(version_doc, http.getStream());
+          // --- DEBOGAGE ---
+          String version_payload = http.getString();
+          Serial.println("Contenu de version.json recu :");
+          Serial.println(version_payload);
+          // --- FIN DEBOGAGE ---
+
+          JsonDocument version_doc;
+          DeserializationError error_version = deserializeJson(version_doc, version_payload);
+          if (error_version) {
+            Serial.printf("Echec de l'analyse de version.json: %s\n", error_version.c_str());
+            otaCurrentState = OTA_FAIL;
+            break;
+          }
+
           int remoteVersion = version_doc["version"];
+          // On utilise .as<String>() pour une conversion plus sure, qui retourne une chaine vide si la cle est absente.
+          String remoteMD5 = version_doc["md5"].as<String>();
           Serial.printf("Version actuelle: %d, Version en ligne: %d\n", FIRMWARE_VERSION, remoteVersion);
+          Serial.printf("MD5 en ligne: %s\n", remoteMD5.c_str());
 
           if (remoteVersion > FIRMWARE_VERSION) {
-            performOtaUpdate(firmware_url);
+            // Verification de securite : on ne lance la mise a jour que si on a une empreinte MD5 valide.
+            if (remoteMD5.isEmpty() || remoteMD5 == "null") {
+              Serial.println("Erreur critique: Le fichier version.json distant ne contient pas d'empreinte MD5. Mise a jour annulee.");
+              otaCurrentState = OTA_FAIL;
+            } else {
+              performOtaUpdate(firmware_url, remoteMD5);
+            }
           } else { otaCurrentState = OTA_UP_TO_DATE; }
 
         } else {
