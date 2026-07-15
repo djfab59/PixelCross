@@ -1,4 +1,7 @@
 #include "shared.h"
+#include "display.h"
+#include "buzzer.h"
+#include "score7seg.h"
 #include "test.h"
 
 static bool prevExitCombo = HIGH;

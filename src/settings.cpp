@@ -1,4 +1,7 @@
 #include "shared.h"
+#include "display.h"
+#include "buzzer.h"
+#include "score7seg.h"
 #include "settings.h"
 #include <Preferences.h>
 #include <WiFiManager.h>
@@ -91,6 +94,16 @@ void startWifiConfigPortal() {
 
 // --- LOGIQUE DE MISE A JOUR OTA ---
 
+// Compare deux versions au format "major.minor" numeriquement
+// Retourne true si 'distante' est plus recente que 'locale'
+static bool versionPlusRecente(const char* distante, const char* locale) {
+  int dMajor = 0, dMinor = 0, lMajor = 0, lMinor = 0;
+  sscanf(distante, "%d.%d", &dMajor, &dMinor);
+  sscanf(locale, "%d.%d", &lMajor, &lMinor);
+  if (dMajor != lMajor) return dMajor > lMajor;
+  return dMinor > lMinor;
+}
+
 // Parametres pour l'API GitHub
 const char* API_HOST = "api.github.com";
 const char* GITHUB_USER_REPO = "djfab59/PixelCross";
@@ -107,9 +120,11 @@ enum OtaState {
   OTA_UP_TO_DATE
 };
 static OtaState otaCurrentState;
+static unsigned long otaStateTimer = 0; // Timer pour les etats OTA (au scope fichier pour le reinitialiser)
 
 void initOtaUpdate() {
   otaCurrentState = OTA_INIT;
+  otaStateTimer = 0; // Reinitialisation explicite pour eviter les bugs au relancement
   FastLED.clear();
   drawCenteredString("UPDATE", 2, CRGB::Blue);
   FastLED.show();
@@ -222,7 +237,6 @@ void performOtaUpdate(String firmwareUrl, String md5) {
 }
 
 void loopOtaUpdate() {
-  static unsigned long stateTimer = 0;
 
   switch (otaCurrentState) {
     case OTA_INIT:
@@ -234,7 +248,7 @@ void loopOtaUpdate() {
         WiFi.mode(WIFI_STA);
         WiFi.setTxPower(WIFI_POWER_5dBm);
         WiFi.begin();
-        stateTimer = millis();
+        otaStateTimer = millis();
         Serial.println("OTA: Connexion au WiFi...");
       }
       break;
@@ -243,7 +257,7 @@ void loopOtaUpdate() {
       if (WiFi.status() == WL_CONNECTED) {
         Serial.println("OTA: Connecte !");
         otaCurrentState = OTA_CHECK_VERSION;
-      } else if (millis() - stateTimer > 15000) { // Timeout de 15s
+      } else if (millis() - otaStateTimer > 15000) { // Timeout de 15s
         Serial.println("OTA: Echec de la connexion WiFi.");
         otaCurrentState = OTA_FAIL;
       }
@@ -266,11 +280,14 @@ void loopOtaUpdate() {
         Serial.printf("Reponse de l'API GitHub: HTTP %d\n", httpCode);
 
         if (httpCode == HTTP_CODE_OK) {
-          // L'API peut renvoyer beaucoup de donnees, on utilise un document dynamique
-          // On alloue un document JSON assez grand. StaticJsonDocument est plus explicite sur la taille,
-          // meme s'il est deprecie, on le remplace par le standard JsonDocument.
+          // On utilise un filtre JSON pour ne parser que les champs necessaires de la reponse GitHub.
+          // Cela reduit drastiquement la consommation memoire sur l'ESP32-C3 (de ~10KB a ~1KB).
+          JsonDocument filtre;
+          filtre["assets"][0]["name"] = true;
+          filtre["assets"][0]["browser_download_url"] = true;
+
           JsonDocument doc;
-          DeserializationError error = deserializeJson(doc, http.getStream());
+          DeserializationError error = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filtre));
           http.end();
 
           if (error) {
@@ -340,13 +357,13 @@ void loopOtaUpdate() {
             break;
           }
 
-          int remoteVersion = version_doc["version"];
+          String remoteVersion = version_doc["version"].as<String>();
           // On utilise .as<String>() pour une conversion plus sure, qui retourne une chaine vide si la cle est absente.
           String remoteMD5 = version_doc["md5"].as<String>();
-          Serial.printf("Version actuelle: %d, Version en ligne: %d\n", FIRMWARE_VERSION, remoteVersion);
+          Serial.printf("Version actuelle: %s, Version en ligne: %s\n", FIRMWARE_VERSION, remoteVersion.c_str());
           Serial.printf("MD5 en ligne: %s\n", remoteMD5.c_str());
 
-          if (remoteVersion > FIRMWARE_VERSION) {
+          if (versionPlusRecente(remoteVersion.c_str(), FIRMWARE_VERSION)) {
             // Verification de securite : on ne lance la mise a jour que si on a une empreinte MD5 valide.
             if (remoteMD5.isEmpty() || remoteMD5 == "null") {
               Serial.println("Erreur critique: Le fichier version.json distant ne contient pas d'empreinte MD5. Mise a jour annulee.");
@@ -380,15 +397,15 @@ void loopOtaUpdate() {
 
     case OTA_FAIL:
     case OTA_UP_TO_DATE:
-      if (stateTimer == 0) { // Premiere entree dans cet etat
+      if (otaStateTimer == 0) { // Premiere entree dans cet etat
         FastLED.clear();
         if (otaCurrentState == OTA_FAIL) drawCenteredString("FAIL", 2, CRGB::Red);
         else drawCenteredString("A JOUR", 2, CRGB::Green);
         FastLED.show();
-        stateTimer = millis();
+        otaStateTimer = millis();
       }
-      if (millis() - stateTimer > 3000) { // Apres 3 secondes
-        stateTimer = 0; // On reinitialise le timer pour la prochaine fois
+      if (millis() - otaStateTimer > 3000) { // Apres 3 secondes
+        otaStateTimer = 0; // On reinitialise le timer pour la prochaine fois
         currentState = STATE_SETTINGS;
       }
       break;

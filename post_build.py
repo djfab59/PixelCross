@@ -16,14 +16,14 @@ def get_firmware_md5(firmware_path):
     return md5.hexdigest()
 
 def get_firmware_version(project_dir):
-    """Extrait la version du firmware depuis src/shared.h."""
+    """Extrait la version du firmware depuis src/shared.h (format string 'X.Y')."""
     shared_h_path = os.path.join(project_dir, "src", "shared.h")
     try:
         with open(shared_h_path, "r") as f:
             content = f.read()
-            match = re.search(r'#define\s+FIRMWARE_VERSION\s+(\d+)', content)
+            match = re.search(r'#define\s+FIRMWARE_VERSION\s+"([^"]+)"', content)
             if match:
-                version = int(match.group(1))
+                version = match.group(1)
                 print(f"Version du firmware trouvee dans shared.h : {version}")
                 return version
     except Exception as e:
@@ -39,12 +39,26 @@ def post_build_copy_firmware(source, target, env):
     # Le 'target' est le fichier .bin qui vient d'etre cree
     firmware_path = str(target[0])
 
+    # Extrait la version du firmware depuis shared.h
+    firmware_version = get_firmware_version(env.get("PROJECT_DIR"))
+
+    # Verifie si la version a change par rapport a version.json
+    # Si la version est identique, on ne regenere pas les fichiers de release (evite le bruit)
+    version_json_path = os.path.join(env.get("PROJECT_DIR"), "firmware", "version.json")
+    if firmware_version is not None and os.path.exists(version_json_path):
+        try:
+            with open(version_json_path, "r") as f:
+                existing_data = json.load(f)
+            if existing_data.get("version") == firmware_version:
+                print(f"Version inchangee ({firmware_version}). Pas de mise a jour des fichiers de release.")
+                print("-------------------------------")
+                return
+        except Exception:
+            pass  # En cas d'erreur de lecture, on continue normalement
+
     # Calcule l'empreinte MD5 du firmware
     firmware_md5 = get_firmware_md5(firmware_path)
     print(f"MD5 du firmware : {firmware_md5}")
-
-    # Extrait la version du firmware depuis shared.h
-    firmware_version = get_firmware_version(env.get("PROJECT_DIR"))
 
     # Dossier de destination
     dest_dir = os.path.join(env.get("PROJECT_DIR"), "firmware")
@@ -63,10 +77,8 @@ def post_build_copy_firmware(source, target, env):
     print(f"Firmware '{os.path.basename(firmware_path)}' copie et renomme en '{dest_file_name}'.")
 
     # Met a jour le fichier version.json avec la nouvelle empreinte MD5 et la version
-    version_json_path = os.path.join(env.get("PROJECT_DIR"), "firmware", "version.json")
     try:
         data = {}
-        # Essayer de lire le fichier existant pour conserver d'autres donnees potentielles
         if os.path.exists(version_json_path):
             with open(version_json_path, "r") as f:
                 data = json.load(f)

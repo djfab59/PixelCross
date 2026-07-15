@@ -1,8 +1,8 @@
 #ifndef SHARED_H
 #define SHARED_H
 
-// Version actuelle du firmware. A incrementer a chaque nouvelle version.
-#define FIRMWARE_VERSION 3
+// Version actuelle du firmware au format "major.minor"
+#define FIRMWARE_VERSION "0.3"
 
 #include <Arduino.h>
 #include <FastLED.h>
@@ -43,24 +43,11 @@ enum AppState {
 };
 extern AppState currentState;
 
-// Declaration des variables et fonctions globales partagees
+// Declaration des variables globales partagees
 extern CRGB leds[NUM_LEDS];
 extern uint8_t brightness;
 
+// Fonction de mapping des coordonnees (X, Y) vers l'index physique de la LED
 uint16_t XY(uint8_t x, uint8_t y);
-void declencherBip(unsigned int frequence, unsigned long duree);
-void declencherBipDouble(unsigned int f1, unsigned int f2, unsigned long d1, unsigned long d2);
-void declencherEffetPouvoir();
-void gererBuzzer();
-
-// Declaration des fonctions d'affichage de texte pour qu'elles soient utilisables partout
-void drawChar(char c, int x, int y, CRGB color);
-void drawString(const char* str, int x, int y, CRGB color);
-void drawCenteredString(const char* str, int y, CRGB color);
-extern bool invertText;
-
-// Fonction globale pour l'affichage du score physique
-void afficherScore7Seg(int scoreVert, int scoreRouge);
-void afficherScoreDecimal7Seg(float scoreVert, float scoreRouge, int decimales);
 
 #endif

@@ -3,6 +3,8 @@
 .pio/
 .pioenvs/
 .piolibdeps/
+.cache/
+compile_commands.json
 
 # VS Code
 .vscode/.browse.c_cpp.db*
@@ -17,5 +19,5 @@
 Thumbs.db
 desktop.ini
 
-# Ignorer uniquement les fichiers firmware (.zip), mais pas le reste du dossier (comme version.json)
-firmware/firmware-*.zip
+# Artefacts de build pour les releases OTA (uploades manuellement dans les GitHub Releases)
+firmware/

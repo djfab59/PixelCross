@@ -1,4 +1,7 @@
 #include "shared.h"
+#include "display.h"
+#include "buzzer.h"
+#include "score7seg.h"
 #include "pong.h"
 
 // Position sur notre circuit de 64 LEDs (Ligne 4 puis Ligne 5)
@@ -34,6 +37,61 @@ static unsigned long timerAlerteVerrou = 0;
 static int compteurAlerteVerrou = 0;
 const int DUREE_CLIGNOTEMENT_VERROU = 150; // 150ms
 
+// --- FONCTION FACTORISEE POUR GERER LA FRAPPE D'UN JOUEUR ---
+// posMin : position minimale de la zone de raquette (1 pour Vert, TRACK_LENGTH - tailleRaquette + 1 pour Rouge)
+// posMax : position maximale de la zone de raquette (tailleRaquette pour Vert, TRACK_LENGTH pour Rouge)
+// pouvoirJoueur : reference vers le pouvoir du joueur qui frappe
+// pouvoirAdverse : reference vers le pouvoir de l'adversaire
+// nouvelleDirection : direction de la balle apres le renvoi (+1 ou -1)
+static void gererFrappe(int posMin, int posMax, int& pouvoirJoueur, int& pouvoirAdverse, int nouvelleDirection) {
+  bool frappeValide = (posX >= posMin && posX <= posMax);
+  bool pouvoirObtenu = false;
+  bool pouvoirDetruit = false;
+
+  if (frappeValide) {
+    // Le pouvoir s'obtient en frappant sur la LED la plus eloignee du centre
+    if (posX == posMax) pouvoirObtenu = true;
+    // On detruit le pouvoir adverse en frappant sur la LED la plus proche du centre
+    if (posX == posMin && pouvoirAdverse > 0) pouvoirDetruit = true;
+  }
+
+  // Calcul du son de rebond (anticipation de la vitesse future)
+  int vitesseFuture = vitesseJeu;
+  int compteurFuture = compteurEchangesMax;
+  if (frappeValide) {
+    if (vitesseFuture > vitesseMax) vitesseFuture -= 5;
+    else compteurFuture++;
+  }
+  unsigned int freqRebond = 1000 + (((80 - vitesseFuture) / 5) + compteurFuture) * 50;
+
+  // Declenchement du son adapte
+  if (pouvoirDetruit) {
+    declencherBipDouble(2500, 1500, 60, 80);
+  } else if (pouvoirObtenu) {
+    declencherBipDouble(1500, 2500, 60, 80);
+  } else {
+    declencherBip(freqRebond, 30);
+  }
+
+  // Application de la logique si la frappe est valide
+  if (frappeValide) {
+    if (pouvoirObtenu) pouvoirJoueur = random(1, 4);
+    if (pouvoirDetruit) pouvoirAdverse = 0;
+
+    direction = nouvelleDirection;
+    if (vitesseJeu > vitesseMax) {
+      vitesseJeu -= 5;
+    } else {
+      compteurEchangesMax++;
+      if (compteurEchangesMax % 2 == 0 && tailleRaquette > 2) tailleRaquette--;
+    }
+  } else {
+    // Frappe dans le vide : on place la balle hors limites pour declencher la perte
+    posX = (nouvelleDirection == 1) ? 0 : TRACK_LENGTH + 1;
+    timerMouvement = 0;
+  }
+}
+
 void initPong() {
   posX = (joueurEngagement == -1) ? 16 : 48;
   direction = (joueurEngagement == -1) ? 1 : -1;
@@ -51,7 +109,7 @@ void initPong() {
   invisibiliteRestante = 0;
   verrouService = true;
   prevExitCombo = HIGH;
-  alerteVerrouActive = false; // On s'assure que l'animation est stoppee
+  alerteVerrouActive = false;
   timerAlerteVerrou = 0;
   compteurAlerteVerrou = 0;
   
@@ -70,13 +128,13 @@ void loopPong() {
 
   if (exitCombo && prevExitCombo == HIGH) {
     declencherBip(800, 50);
-    afficherScore7Seg(-1, -1); // Eteint les 7 segments
-    victoiresVert = 0; // Reinitialise les scores du tournoi en quittant
+    afficherScore7Seg(-1, -1);
+    victoiresVert = 0;
     victoiresRouge = 0;
-    joueurEngagement = -1; // Vert commencera de nouveau si on relance depuis le menu
+    joueurEngagement = -1;
     currentState = STATE_MENU;
     prevExitCombo = exitCombo;
-    return; // On quitte immediatement et retourne au menu
+    return;
   }
   prevExitCombo = exitCombo;
 
@@ -93,8 +151,7 @@ void loopPong() {
 
   // --- GESTION DE LA FIN DE PARTIE ---
   if (partieTerminee) {
-    CRGB couleurGagnant = (viesVert <= 0) ? CRGB::Red : CRGB::Green;
-    CRGB couleurDouce = (viesVert <= 0) ? CRGB(40, 0, 0) : CRGB(0, 40, 0); // Couleur assombrie
+    CRGB couleurDouce = (viesVert <= 0) ? CRGB(40, 0, 0) : CRGB(0, 40, 0);
     
     // Clignotement doux de l'ecran en attendant la nouvelle partie
     if (millis() % 1000 < 500) {
@@ -110,14 +167,14 @@ void loopPong() {
       initPong();
     }
 
-    return; // On stoppe l'exécution de la boucle ici tant que le jeu est fini
+    return;
   }
 
   if (enAttenteEngagement) {
     // Logique d'engagement
     if (joueurEngagement == -1) {
       if (clicRouge) verrouService = false;
-      if (clicVert && !alerteVerrouActive) { // On ne peut pas declencher si l'alerte est deja en cours
+      if (clicVert && !alerteVerrouActive) {
         if (verrouService) {
           alerteVerrouActive = true;
           timerAlerteVerrou = millis();
@@ -151,111 +208,33 @@ void loopPong() {
         timerAlerteVerrou = millis();
         compteurAlerteVerrou++;
 
-        if (compteurAlerteVerrou % 2 != 0) { // Phase 1: Bip + LED eteinte
+        if (compteurAlerteVerrou % 2 != 0) {
           ledcWriteTone(BUZZER_CHANNEL, 150);
           ledcWrite(BUZZER_CHANNEL, 127);
-        } else { // Phase 2: Pas de bip + LED allumee
+        } else {
           ledcWriteTone(BUZZER_CHANNEL, 0);
           ledcWrite(BUZZER_CHANNEL, 0);
         }
 
-        if (compteurAlerteVerrou >= 6) { // 3 clignotements complets (6 phases)
+        if (compteurAlerteVerrou >= 6) {
           alerteVerrouActive = false;
-          // On s'assure que le son est coupe et que la LED est visible a la fin
           ledcWriteTone(BUZZER_CHANNEL, 0);
           ledcWrite(BUZZER_CHANNEL, 0);
         }
       }
     }
 
-
   } else {
-    // 2. Logique de frappe (Renvoi)
+    // 2. Logique de frappe (Renvoi) — utilise la fonction factorisee
     // Si la balle se dirige vers la GAUCHE (c'est au Vert de jouer)
     if (direction == -1 && clicVert) {
-      bool frappeValide = (posX <= tailleRaquette);
-      bool pouvoirObtenu = false;
-      bool pouvoirDetruit = false;
-
-      if (frappeValide) {
-        if (posX == 1) pouvoirObtenu = true; 
-        if (posX == tailleRaquette && pouvoirRouge > 0) pouvoirDetruit = true;
-      }
-
-      int vitesseFuture = vitesseJeu;
-      int compteurFuture = compteurEchangesMax;
-      if (frappeValide) {
-        if (vitesseFuture > vitesseMax) vitesseFuture -= 5;
-        else compteurFuture++; 
-      }
-      unsigned int freqRebond = 1000 + (((80 - vitesseFuture) / 5) + compteurFuture) * 50;
-      if (pouvoirDetruit) {
-        declencherBipDouble(2500, 1500, 60, 80); 
-      } else if (pouvoirObtenu) {
-        declencherBipDouble(1500, 2500, 60, 80); 
-      } else {
-        declencherBip(freqRebond, 30); 
-      }
-
-      if (frappeValide) {
-        if (pouvoirObtenu) pouvoirVert = random(1, 4); 
-        if (pouvoirDetruit) pouvoirRouge = 0;
-
-        direction = 1; 
-        if (vitesseJeu > vitesseMax) {
-          vitesseJeu -= 5; 
-        } else {
-          compteurEchangesMax++; 
-          if (compteurEchangesMax % 2 == 0 && tailleRaquette > 2) tailleRaquette--;
-        }
-      } else {
-        posX = 0; 
-        timerMouvement = 0; 
-      }
+      gererFrappe(1, tailleRaquette, pouvoirVert, pouvoirRouge, 1);
       clicVert = false;
     }
     
     // Si la balle se dirige vers la DROITE (c'est au Rouge de jouer)
     if (direction == 1 && clicRouge) {
-      bool frappeValide = (posX >= (TRACK_LENGTH - tailleRaquette + 1));
-      bool pouvoirObtenu = false;
-      bool pouvoirDetruit = false;
-
-      if (frappeValide) {
-        if (posX == TRACK_LENGTH) pouvoirObtenu = true; 
-        if (posX == (TRACK_LENGTH - tailleRaquette + 1) && pouvoirVert > 0) pouvoirDetruit = true;
-      }
-
-      int vitesseFuture = vitesseJeu;
-      int compteurFuture = compteurEchangesMax;
-      if (frappeValide) {
-        if (vitesseFuture > vitesseMax) vitesseFuture -= 5;
-        else compteurFuture++; 
-      }
-      unsigned int freqRebond = 1000 + (((80 - vitesseFuture) / 5) + compteurFuture) * 50;
-      if (pouvoirDetruit) {
-        declencherBipDouble(2500, 1500, 60, 80); 
-      } else if (pouvoirObtenu) {
-        declencherBipDouble(1500, 2500, 60, 80); 
-      } else {
-        declencherBip(freqRebond, 30); 
-      }
-
-      if (frappeValide) {
-        if (pouvoirObtenu) pouvoirRouge = random(1, 4); 
-        if (pouvoirDetruit) pouvoirVert = 0;
-
-        direction = -1; 
-        if (vitesseJeu > vitesseMax) {
-          vitesseJeu -= 5;
-        } else {
-          compteurEchangesMax++; 
-          if (compteurEchangesMax % 2 == 0 && tailleRaquette > 2) tailleRaquette--;
-        }
-      } else {
-        posX = TRACK_LENGTH + 1; 
-        timerMouvement = 0; 
-      }
+      gererFrappe(TRACK_LENGTH - tailleRaquette + 1, TRACK_LENGTH, pouvoirRouge, pouvoirVert, -1);
       clicRouge = false;
     }
 
@@ -274,7 +253,7 @@ void loopPong() {
       declencherEffetPouvoir(); 
     }
 
-    // 3. Déplacement de la balle géré par le temps (millis)
+    // 3. Deplacement de la balle gere par le temps (millis)
     unsigned long delaiMouvement = (dashRestant > 0) ? 5 : vitesseJeu;
     if (millis() - timerMouvement > delaiMouvement) {
       timerMouvement = millis();
@@ -298,9 +277,6 @@ void loopPong() {
           declencherEffetPouvoir(); 
         } 
         else {
-          // On reduit ENCORE PLUS la luminosite du trait. La reduction precedente a 150
-          // n'etait pas suffisante pour empecher la chute de tension sur la matrice.
-          // Une valeur de 80 devrait etre beaucoup plus stable.
           CRGB couleurPoint = vertARate ? CRGB(80, 0, 0) : CRGB(0, 80, 0);
           joueurEngagement = vertARate ? -1 : 1;
           
@@ -312,7 +288,7 @@ void loopPong() {
             if (viesVert <= 0) victoiresRouge++;
             else victoiresVert++;
             
-            if (victoiresVert > 999) victoiresVert = 999; // Plafond à 999 victoires
+            if (victoiresVert > 999) victoiresVert = 999;
             if (victoiresRouge > 999) victoiresRouge = 999;
             
             afficherScore7Seg(victoiresVert, victoiresRouge);
@@ -390,8 +366,6 @@ void loopPong() {
 
   // 4. Dessin de l'ecran
   FastLED.clear();
-  // Augmentons la luminosite des raquettes pour voir si le scintillement disparait
-  // Une valeur comme 80 est assez lumineuse pour etre stable.
   for(int x = 1; x <= tailleRaquette; x++) leds[XY(x, 4)] = CRGB(0, 80, 0);   
   for(int x = 32 - tailleRaquette + 1; x <= 32; x++) leds[XY(x, 5)] = CRGB(80, 0, 0); 
 
@@ -408,10 +382,9 @@ void loopPong() {
   else if (pouvoirRouge == 3) leds[XY(30, 7)] = CRGB::Blue; 
 
   if (enAttenteEngagement && verrouService) {
-    // On gere l'affichage du verrou en fonction de l'animation d'alerte
     bool afficherVerrou = true;
     if (alerteVerrouActive && compteurAlerteVerrou % 2 != 0) {
-      afficherVerrou = false; // On n'affiche pas le verrou pendant la phase "eteinte" du clignotement
+      afficherVerrou = false;
     }
 
     if (afficherVerrou) {
