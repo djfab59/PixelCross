@@ -49,10 +49,21 @@ static void gererFrappe(int posMin, int posMax, int& pouvoirJoueur, int& pouvoir
   bool pouvoirDetruit = false;
 
   if (frappeValide) {
-    // Le pouvoir s'obtient en frappant sur la LED la plus eloignee du centre
-    if (posX == posMax) pouvoirObtenu = true;
-    // On detruit le pouvoir adverse en frappant sur la LED la plus proche du centre
-    if (posX == posMin && pouvoirAdverse > 0) pouvoirDetruit = true;
+    // La logique dépend du joueur.
+    // Pour le joueur Vert (à gauche), la LED la plus éloignée du centre (qui donne le pouvoir) est posMin (1).
+    // Pour le joueur Rouge (à droite), la LED la plus éloignée est posMax (64).
+    // nouvelleDirection == 1 signifie que le joueur Vert vient de frapper.
+    int ledPouvoir = (nouvelleDirection == 1) ? posMin : posMax;
+    int ledContre = (nouvelleDirection == 1) ? posMax : posMin;
+
+    // Le pouvoir s'obtient en frappant sur la LED la plus éloignée du centre du terrain.
+    if (posX == ledPouvoir) {
+      pouvoirObtenu = true;
+    }
+    // On détruit le pouvoir adverse en frappant sur la LED la plus proche du centre.
+    if (posX == ledContre && pouvoirAdverse > 0) {
+      pouvoirDetruit = true;
+    }
   }
 
   // Calcul du son de rebond (anticipation de la vitesse future)
