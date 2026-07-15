@@ -2,7 +2,7 @@
 #define SHARED_H
 
 // Version actuelle du firmware au format "major.minor"
-#define FIRMWARE_VERSION "0.2"
+#define FIRMWARE_VERSION "0.3"
 
 #include <Arduino.h>
 #include <FastLED.h>
@@ -24,7 +24,7 @@
 #define PIN_SDI 8
 #define PIN_SCLK 9
 #define PIN_LOAD 10
-#define DIGITS_PER_MODULE 3 // Nombre de chiffres par afficheur (a modifier si changement de materiel)
+#define DIGITS_PER_MODULE 4 // Nombre de chiffres par afficheur (a modifier si changement de materiel)
 
 // Parametres de la matrice
 #define MATRIX_WIDTH 32

@@ -8,7 +8,7 @@ PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, joua
 - **Physique dynamique :** La balle accélère à chaque échange réussi.
 - **Mécanique de Faute (Anti-Spam) :** Appuyer avant que la balle n'entre dans la zone de votre raquette vous fait instantanément perdre la manche !
 - **Mode "Mort Subite" :** Une fois la vitesse maximale de la balle atteinte, la taille des raquettes se réduit toutes les deux frappes (passant de 5 LEDs à 2 LEDs) pour forcer l'erreur.
-- **Vies et Mode Tournoi :** 3 vies par joueur affichées sur la matrice (en rose). Les afficheurs 7 segments externes agissent comme un compteur global de victoires !
+- **Vies et Mode Tournoi :** 3 vies par joueur affichées sur la matrice (en rose). Les afficheurs 7 segments externes agissent comme un compteur global de victoires (jusqu'à 9999) !
 - **Verrou de Sécurité :** L'engagement est bloqué tant que le joueur en défense n'a pas signalé qu'il est prêt.
 - **Mises à jour OTA :** Le firmware peut être mis à jour sans fil via WiFi directement depuis les "releases" du dépôt GitHub.
 - **Menu de Réglages :**
@@ -51,7 +51,7 @@ PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, joua
 | **Bouton Rouge 2 (Futur)** | Patte 1 | GPIO **7** |
 | | Patte 2 | GND |
 | **Afficheurs Score** | `SDI` | GPIO **8** |
-| (2x Modules 7 Segments)| `SCLK`| GPIO **9** |
+| (2x Modules 4x7 Segments)| `SCLK`| GPIO **9** |
 | via 74HC595 en série | `LOAD`| GPIO **10** |
 | **Buzzer** | Signal | GPIO **4** (via transistor) |
 
@@ -86,19 +86,36 @@ Dans ce menu, vous pouvez :
 - **UPDATE :** Lance la procédure de mise à jour Over-The-Air (OTA). L'appareil se connecte à GitHub, vérifie si une nouvelle version est disponible et, le cas échéant, la télécharge et l'installe automatiquement avant de redémarrer.
 
 ## 🧑‍💻 Pour les développeurs : Processus de mise à jour OTA
-
-Le système est conçu pour être simple à mettre à jour.
-
-1.  **Incrémenter la version :** Avant de compiler une nouvelle version, modifiez la constante `FIRMWARE_VERSION` dans le fichier `src/shared.h`.
-2.  **Compiler le projet :** Lancez une compilation. Le script `copy_firmware.py` va automatiquement :
-    -   Créer un fichier `firmware/firmware-esp32-c3-devkitm-1.zip`.
-    -   Calculer son empreinte MD5.
-    -   Mettre à jour le fichier `firmware/version.json` avec le nouveau numéro de version et l'empreinte MD5.
-3.  **Créer une "Release" sur GitHub :**
-    -   Créez une nouvelle "release" sur le dépôt GitHub.
-    -   Attachez-y les deux fichiers générés : `firmware/version.json` et `firmware/firmware-esp32-c3-devkitm-1.zip`.
-    -   **Important :** Cochez la case "Set as the latest release".
-4.  Les appareils existants trouveront et installeront la mise à jour via le menu "UPDATE".
+ 
+Le système de mise à jour est conçu pour être simple et peut être entièrement automatisé.
+ 
+### Étape 1 : Préparation
+Avant de compiler une nouvelle version, modifiez la constante `FIRMWARE_VERSION` dans le fichier `src/shared.h`.
+ 
+### Étape 2 : Compilation
+Lancez une compilation avec PlatformIO. Le script `post_build.py` s'exécutera automatiquement et va :
+- Créer un fichier `firmware/firmware-esp32-c3-devkitm-1.zip`.
+- Calculer son empreinte MD5.
+- Mettre à jour le fichier `firmware/version.json` avec le nouveau numéro de version et l'empreinte MD5.
+ 
+### Étape 3 : Publication de la Release (Automatisée ou Manuelle)
+ 
+#### Option A : Publication Automatisée (Recommandé)
+Pour que la release soit créée et publiée automatiquement sur GitHub après la compilation :
+1.  Créez un Personal Access Token (classic) sur GitHub avec les permissions `repo` (ou `public_repo` si le dépôt est public).
+2.  À la racine du projet, créez un fichier nommé `.github_token`.
+3.  Collez votre token dans ce fichier.
+ 
+Lors de la prochaine compilation, si la version a changé, le script créera une nouvelle "release" sur GitHub, y attachera les fichiers `version.json` et `firmware-....zip`, et la publiera.
+ 
+#### Option B : Publication Manuelle
+Si vous ne configurez pas l'automatisation :
+1.  Créez manuellement une nouvelle "release" sur le dépôt GitHub.
+2.  Attachez-y les deux fichiers générés par le script de compilation : `firmware/version.json` et `firmware/firmware-esp32-c3-devkitm-1.zip`.
+3.  **Important :** Assurez-vous que la release est marquée comme "latest".
+ 
+### Étape 4 : Mise à jour sur l'appareil
+Les appareils existants trouveront et installeront la mise à jour via le menu "UPDATE".
 
 ---
 

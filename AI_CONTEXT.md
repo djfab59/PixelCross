@@ -5,7 +5,7 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 ## Matériel et Contraintes
 - **Microcontrôleur** : ESP32-C3 SuperMini.
 - **Affichage** : Matrice LED WS2812B 8x32 (256 LEDs au total).
-- **Score** : 2x Modules 7 Segments (via 74HC595 en série). SDI sur GPIO 8, SCLK sur GPIO 9, LOAD sur GPIO 10.
+- **Score** : 2x Modules 4x7 Segments (via 74HC595 en série). SDI sur GPIO 8, SCLK sur GPIO 9, LOAD sur GPIO 10.
 - **Alimentation** : 5V 3A externe. **Règle stricte** : Le logiciel (FastLED) doit toujours limiter la consommation à 2500mA maximum pour des raisons de sécurité.
 - **Boutons** : 
   - Joueur Vert : GPIO 0 (Action/Validation), GPIO 1 (Menu Gauche), GPIO 2 (Menu Droite)
@@ -22,7 +22,7 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Score Externe** : Le nombre de victoires (Tournoi) est conservé sur les modules 7 segments (configurable via `DIGITS_PER_MODULE`).
 - **Table de partition** : Le projet utilise un fichier `default_ota.csv` pour définir une structure de mémoire compatible avec les mises à jour OTA.
 - **Gestion WiFi** : La bibliothèque `tzapu/WiFiManager` est utilisée pour créer un portail de configuration captif.
-- **Mises à jour OTA** : Le système peut se mettre à jour via WiFi en interrogeant l'API GitHub pour la "dernière release". Il télécharge le binaire, vérifie son intégrité avec une empreinte MD5, et l'installe. La version et le MD5 sont gérés par un script Python (`copy_firmware.py`) qui s'exécute après la compilation.
+- **Mises à jour OTA** : Le système peut se mettre à jour via WiFi en interrogeant l'API GitHub pour la "dernière release". Il télécharge le binaire, vérifie son intégrité avec une empreinte MD5, et l'installe. La version et le MD5 sont gérés par un script Python (`post_build.py`) qui s'exécute après la compilation. Ce script peut également, si un token GitHub est fourni, créer automatiquement une "release" sur GitHub et y publier le firmware et le fichier de version, rendant le processus de déploiement entièrement automatisé.
 - **Machine d'états** : Le projet utilise une machine d'états simple (`enum AppState`) pour gérer les différents modes : `STATE_MENU`, `STATE_PONG`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
 - **Menu Réglages** : Permet de configurer la luminosité (sauvegardée en mémoire NVS), de lancer le portail de configuration WiFi, et de lancer le processus de mise à jour OTA.
 

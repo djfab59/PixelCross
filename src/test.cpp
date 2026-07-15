@@ -71,12 +71,12 @@ void loopTest() {
   } else {
     // --- LOGIQUE D'INCREMENTATION DES AFFICHEURS ---
     bool scoreUpdated = false;
-    if (clicG)  { testScoreVert = (testScoreVert + 100) % 1000; scoreUpdated = true; } // +10.0
-    if (clicG1) { testScoreVert = (testScoreVert + 1)   % 1000; scoreUpdated = true; } // +0.1
-    if (clicG2) { testScoreVert = (testScoreVert + 10)  % 1000; scoreUpdated = true; } // +1.0
-    if (clicR)  { testScoreRouge = (testScoreRouge + 100) % 1000; scoreUpdated = true; } // +10.0
-    if (clicR1) { testScoreRouge = (testScoreRouge + 1)   % 1000; scoreUpdated = true; } // +0.1
-    if (clicR2) { testScoreRouge = (testScoreRouge + 10)  % 1000; scoreUpdated = true; } // +1.0
+    if (clicG)  { testScoreVert = (testScoreVert + 100) % 10000; scoreUpdated = true; } // +10.0
+    if (clicG1) { testScoreVert = (testScoreVert + 1)   % 10000; scoreUpdated = true; } // +0.1
+    if (clicG2) { testScoreVert = (testScoreVert + 10)  % 10000; scoreUpdated = true; } // +1.0
+    if (clicR)  { testScoreRouge = (testScoreRouge + 100) % 10000; scoreUpdated = true; } // +10.0
+    if (clicR1) { testScoreRouge = (testScoreRouge + 1)   % 10000; scoreUpdated = true; } // +0.1
+    if (clicR2) { testScoreRouge = (testScoreRouge + 10)  % 10000; scoreUpdated = true; } // +1.0
 
     if (scoreUpdated) {
       afficherScoreDecimal7Seg((float)testScoreVert / 10.0, (float)testScoreRouge / 10.0, 1);

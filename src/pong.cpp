@@ -299,8 +299,8 @@ void loopPong() {
             if (viesVert <= 0) victoiresRouge++;
             else victoiresVert++;
             
-            if (victoiresVert > 999) victoiresVert = 999;
-            if (victoiresRouge > 999) victoiresRouge = 999;
+            if (victoiresVert > 9999) victoiresVert = 9999;
+            if (victoiresRouge > 9999) victoiresRouge = 9999;
             
             afficherScore7Seg(victoiresVert, victoiresRouge);
 
