@@ -202,13 +202,17 @@ def post_build_copy_firmware(source, target, env):
         # Mettre a jour les valeurs
         if firmware_version is not None:
             data['version'] = firmware_version
-        data['md5'] = firmware_md5
+        
+        # Le MD5 est indexe par plateforme pour supporter plusieurs boards
+        if 'md5' not in data or not isinstance(data['md5'], dict):
+            data['md5'] = {}
+        data['md5'][env_name] = firmware_md5
 
         # Reecrire le fichier
         with open(version_json_path, "w") as f:
             json.dump(data, f, indent=2)
             
-        print(f"version.json mis a jour (version: {data.get('version', 'N/A')}, md5: {data.get('md5', 'N/A')})")
+        print(f"version.json mis a jour (version: {data.get('version', 'N/A')}, md5[{env_name}]: {firmware_md5})")
     except Exception as e:
         print(f"AVERTISSEMENT: Impossible de mettre a jour le MD5 dans version.json: {e}")
 

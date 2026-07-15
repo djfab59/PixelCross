@@ -358,10 +358,10 @@ void loopOtaUpdate() {
           }
 
           String remoteVersion = version_doc["version"].as<String>();
-          // On utilise .as<String>() pour une conversion plus sure, qui retourne une chaine vide si la cle est absente.
-          String remoteMD5 = version_doc["md5"].as<String>();
+          // Le MD5 est indexe par plateforme pour supporter plusieurs boards
+          String remoteMD5 = version_doc["md5"][PIO_ENV_NAME].as<String>();
           Serial.printf("Version actuelle: %s, Version en ligne: %s\n", FIRMWARE_VERSION, remoteVersion.c_str());
-          Serial.printf("MD5 en ligne: %s\n", remoteMD5.c_str());
+          Serial.printf("MD5 en ligne (%s): %s\n", PIO_ENV_NAME, remoteMD5.c_str());
 
           if (versionPlusRecente(remoteVersion.c_str(), FIRMWARE_VERSION)) {
             // Verification de securite : on ne lance la mise a jour que si on a une empreinte MD5 valide.
