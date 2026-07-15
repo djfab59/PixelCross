@@ -19,5 +19,8 @@ compile_commands.json
 Thumbs.db
 desktop.ini
 
+# Token GitHub pour la publication automatique des releases
+.github_token
+
 # Artefacts de build pour les releases OTA (uploades manuellement dans les GitHub Releases)
 firmware/
