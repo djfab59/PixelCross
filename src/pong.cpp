@@ -46,6 +46,7 @@ static bool verrouService = true;
 static bool prevExitCombo = HIGH;
 static int victoiresVert = 0;
 static int victoiresRouge = 0;
+static bool dernierMatchGagne = false; // Pour le clignotement fin de partie en solo
 
 // Variables pour l'animation non-bloquante du verrou de service
 static bool alerteVerrouActive = false;
@@ -101,14 +102,17 @@ static void animationNouveauRecord() {
 }
 
 // --- FONCTION FACTORISEE POUR GERER LA FRAPPE D'UN JOUEUR ---
-static void gererFrappe(int posMin, int posMax, int& pouvoirJoueur, int& pouvoirAdverse, int nouvelleDirection) {
+// posMin/posMax : bornes de la zone de raquette
+// ledMur : position de la LED la plus eloignee du centre (ou on obtient le pouvoir)
+// ledCentre : position de la LED la plus proche du centre (ou on detruit le pouvoir adverse)
+static void gererFrappe(int posMin, int posMax, int ledMur, int ledCentre, int& pouvoirJoueur, int& pouvoirAdverse, int nouvelleDirection) {
   bool frappeValide = (posX >= posMin && posX <= posMax);
   bool pouvoirObtenu = false;
   bool pouvoirDetruit = false;
 
   if (frappeValide) {
-    if (posX == posMax) pouvoirObtenu = true;
-    if (posX == posMin && pouvoirAdverse > 0) pouvoirDetruit = true;
+    if (posX == ledMur) pouvoirObtenu = true;
+    if (posX == ledCentre && pouvoirAdverse > 0) pouvoirDetruit = true;
   }
 
   int vitesseFuture = vitesseJeu;
@@ -151,7 +155,6 @@ static void gererFrappe(int posMin, int posMax, int& pouvoirJoueur, int& pouvoir
 // Le bot renvoie toujours quand la balle atteint la derniere LED de son cote
 static void gererFrappeBot() {
   // Le bot frappe toujours au bon moment, pas de pouvoir
-  int dummy = 0;
   direction = -1; // Renvoie vers le vert
   // On incremente le compteur et on accelere comme un renvoi normal
   if (vitesseJeu > vitesseMax) {
@@ -300,7 +303,12 @@ static void loopPlaying() {
 
   // --- FIN DE PARTIE ---
   if (partieTerminee) {
-    CRGB couleurDouce = (viesVert <= 0) ? CRGB(40, 0, 0) : CRGB(0, 40, 0);
+    CRGB couleurDouce;
+    if (modeSolo) {
+      couleurDouce = dernierMatchGagne ? CRGB(0, 40, 0) : CRGB(40, 0, 0);
+    } else {
+      couleurDouce = (viesVert <= 0) ? CRGB(40, 0, 0) : CRGB(0, 40, 0);
+    }
     if (millis() % 1000 < 500) {
       for (int i = 0; i < NUM_LEDS; i++) leds[i] = couleurDouce;
     } else {
@@ -329,9 +337,6 @@ static void loopPlaying() {
         enAttenteEngagement = false;
         direction = 1;
         timerMouvement = millis();
-        // Reset du compteur d'echanges au service
-        compteurEchanges = 0;
-        afficherScore7Seg(0, 0);
       }
     } else {
       // Mode DUO : logique d'engagement avec verrou
@@ -395,7 +400,7 @@ static void loopPlaying() {
         bool frappeValide = (posX >= 1 && posX <= tailleRaquette);
         bool pouvoirObtenu = false;
 
-        if (frappeValide && posX == tailleRaquette) pouvoirObtenu = true;
+        if (frappeValide && posX == 1) pouvoirObtenu = true; // LED mur (la plus eloignee du centre)
 
         int vitesseFuture = vitesseJeu;
         int compteurFuture = compteurEchangesMax;
@@ -427,11 +432,13 @@ static void loopPlaying() {
     } else {
       // DUO : logique standard
       if (direction == -1 && clicVert) {
-        gererFrappe(1, tailleRaquette, pouvoirVert, pouvoirRouge, 1);
+        // Vert : ledMur=1 (la plus loin du centre), ledCentre=tailleRaquette (la plus proche du centre)
+        gererFrappe(1, tailleRaquette, 1, tailleRaquette, pouvoirVert, pouvoirRouge, 1);
         clicVert = false;
       }
       if (direction == 1 && clicRouge) {
-        gererFrappe(TRACK_LENGTH - tailleRaquette + 1, TRACK_LENGTH, pouvoirRouge, pouvoirVert, -1);
+        // Rouge : ledMur=TRACK_LENGTH (la plus loin du centre), ledCentre=TRACK_LENGTH-tailleRaquette+1 (la plus proche)
+        gererFrappe(TRACK_LENGTH - tailleRaquette + 1, TRACK_LENGTH, TRACK_LENGTH, TRACK_LENGTH - tailleRaquette + 1, pouvoirRouge, pouvoirVert, -1);
         clicRouge = false;
       }
     }
@@ -463,17 +470,15 @@ static void loopPlaying() {
       if (invisibiliteRestante > 0) invisibiliteRestante--;
 
       // --- GESTION BALLE HORS LIMITES ---
-      if (posX < 1 || posX > TRACK_LENGTH) {
+      // En SOLO : le bot renvoie quand la balle atteint la LED mur (TRACK_LENGTH)
+      if (modeSolo && posX == TRACK_LENGTH && direction == 1) {
+        gererFrappeBot();
+      }
+      else if (posX < 1 || posX > TRACK_LENGTH) {
         bool vertARate = (posX < 1);
 
-        // En SOLO : le bot renvoie toujours quand la balle atteint son cote
-        if (modeSolo && !vertARate) {
-          // Le bot renvoie
-          posX = TRACK_LENGTH;
-          gererFrappeBot();
-        }
         // Pouvoir 3 (bouclier) du vert
-        else if (vertARate && pouvoirVert == 3) {
+        if (vertARate && pouvoirVert == 3) {
           pouvoirVert = 0;
           posX = 1;
           direction = 1;
@@ -500,6 +505,7 @@ static void loopPlaying() {
                 highscoreSolo = compteurEchanges;
                 sauvegarderHighscore(true);
                 animationNouveauRecord();
+                dernierMatchGagne = true;
                 // Sequence vert gagne
                 CRGB couleurGagnant = CRGB::Green;
                 FastLED.clear();
@@ -508,6 +514,7 @@ static void loopPlaying() {
                   FastLED.show(); delay(30);
                 }
               } else {
+                dernierMatchGagne = false;
                 // Sequence rouge gagne
                 CRGB couleurGagnant = CRGB::Red;
                 FastLED.clear();

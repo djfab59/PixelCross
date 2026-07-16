@@ -74,8 +74,62 @@ void setup() {
   
   FastLED.setBrightness(brightness); 
 
-  // Bip de demarrage
-  declencherBipDouble(800, 1200, 80, 120);
+  // --- ECRAN D'ACCUEIL ---
+  // "PXLCROSS" descend du haut vers le centre avec changement de couleur progressif
+  // et un son de demarrage melodique
+  {
+    const int yFinal = 2; // Position Y centree
+    const int yDepart = -4; // Commence hors ecran (au-dessus)
+    const int dureeDescente = 2000; // 2 secondes
+    const int nbEtapes = yFinal - yDepart; // 6 etapes
+    const int delaiParEtape = dureeDescente / nbEtapes;
+    
+    // Notes melodiques pour l'intro (une par etape de descente)
+    int notesIntro[] = {262, 330, 392, 523, 659, 784}; // Do Mi Sol Do' Mi' Sol'
+    
+    for (int y = yDepart; y <= yFinal; y++) {
+      FastLED.clear();
+      
+      // Couleur qui evolue du cyan vers le violet pendant la descente
+      uint8_t progression = map(y, yDepart, yFinal, 0, 255);
+      CRGB couleur = CRGB(progression, 255 - progression / 2, 255);
+      
+      drawCenteredString("PXLCROSS", y, couleur);
+      FastLED.show();
+      
+      // Son melodique pour cette etape
+      int noteIdx = y - yDepart;
+      if (noteIdx < 6) {
+        ledcWriteTone(BUZZER_CHANNEL, notesIntro[noteIdx]);
+        ledcWrite(BUZZER_CHANNEL, 127);
+      }
+      
+      delay(delaiParEtape);
+    }
+    
+    // Coupe le son
+    ledcWriteTone(BUZZER_CHANNEL, 0);
+    ledcWrite(BUZZER_CHANNEL, 0);
+    
+    // Pause au centre (500ms)
+    delay(500);
+    
+    // Fade out progressif (disparition en moins d'une seconde)
+    for (int b = brightness; b >= 0; b -= 8) {
+      if (b < 0) b = 0;
+      FastLED.setBrightness(b);
+      FastLED.show();
+      delay(30);
+      if (b == 0) break;
+    }
+    
+    FastLED.clear();
+    FastLED.show();
+    
+    // Remet la luminosite normale
+    FastLED.setBrightness(brightness);
+    delay(200);
+  }
 }
 
 void drawMenu() {
