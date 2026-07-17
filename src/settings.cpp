@@ -523,10 +523,10 @@ void loopSettings() {
     if (settingsMenuIndex == 0) {
       drawCenteredString("LIGHT", 2, CRGB::Green);
     } else if (settingsMenuIndex == 1) {
+      drawCenteredString("UPDATE", 2, CRGB::Green);
+    } else if (settingsMenuIndex == 2) {
       if (wifiConnected) drawCenteredString("WIFI OK", 2, CRGB::Green);
       else drawCenteredString("WIFI", 2, CRGB::Green);
-    } else if (settingsMenuIndex == 2) {
-      drawCenteredString("UPDATE", 2, CRGB::Green);
     }
 
     if (clicG) { // Entrer en mode edition
@@ -546,11 +546,11 @@ void loopSettings() {
         editingMode = true;
         declencherBip(800, 50);
       } else if (settingsMenuIndex == 1) {
-        currentState = STATE_WIFI_CONFIG;
-      } else if (settingsMenuIndex == 2) {
         // --- ACTION POUR "UPDATE" ---
         initOtaUpdate();
         currentState = STATE_OTA_UPDATE;
+      } else if (settingsMenuIndex == 2) {
+        currentState = STATE_WIFI_CONFIG;
       }
     }
   }

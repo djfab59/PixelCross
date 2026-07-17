@@ -2,7 +2,7 @@
 #define SHARED_H
 
 // Version actuelle du firmware au format "major.minor"
-#define FIRMWARE_VERSION "0.4"
+#define FIRMWARE_VERSION "0.5"
 
 #include <Arduino.h>
 #include <FastLED.h>
@@ -35,11 +35,11 @@
 enum AppState {
   STATE_MENU,
   STATE_PONG,
+  STATE_CHRONO,
   STATE_SETTINGS,
   STATE_TEST,
   STATE_WIFI_CONFIG,
   STATE_OTA_UPDATE
-  // On ajoutera les prochains jeux ici
 };
 extern AppState currentState;
 

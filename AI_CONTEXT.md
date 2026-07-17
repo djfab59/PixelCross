@@ -5,7 +5,7 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 ## Matériel et Contraintes
 - **Microcontrôleur** : ESP32-C3 SuperMini.
 - **Affichage** : Matrice LED WS2812B 8x32 (256 LEDs au total).
-- **Score** : 2x Modules 4x7 Segments (via 74HC595 en série). SDI sur GPIO 8, SCLK sur GPIO 9, LOAD sur GPIO 10.
+- **Score** : 2x Modules 4x7 Segments (via 74HC595 en série). SDI sur GPIO 8, SCLK sur GPIO 9, LOAD sur GPIO 10. `DIGITS_PER_MODULE = 4`.
 - **Alimentation** : 5V 3A externe. **Règle stricte** : Le logiciel (FastLED) doit toujours limiter la consommation à 2500mA maximum pour des raisons de sécurité.
 - **Boutons** : 
   - Joueur Vert : GPIO 0 (Action/Validation), GPIO 1 (Menu Gauche), GPIO 2 (Menu Droite)
@@ -16,32 +16,62 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 ## Architecture et Choix Techniques
 - **Framework** : Arduino (via PlatformIO).
 - **Bibliothèque LED** : FastLED.
-- **Topologie Matrice** : Le terrain de jeu utilise une fonction `XY(x, y)` sur mesure car le câblage de la matrice physique serpente (en zigzag). 
-- **Espace de Jeu (Track)** : La piste fait 64 LEDs de long, utilisant la ligne 4 (camp gauche) et la ligne 5 (camp droit).
+- **Topologie Matrice** : Le terrain de jeu utilise une fonction `XY(x, y)` sur mesure car le câblage de la matrice physique serpente (en zigzag). Coordonnées 1-indexées.
+- **Espace de Jeu Pong (Track)** : La piste fait 64 LEDs de long, utilisant la ligne 4 (camp gauche) et la ligne 5 (camp droit).
 - **Interface (HUD)** : Les vies du joueur Vert (Gauche) sont affichées sur la ligne 1. Celles du joueur Rouge (Droit) sur la ligne 8.
-- **Score Externe** : Le nombre de victoires (Tournoi) est conservé sur les modules 7 segments (configurable via `DIGITS_PER_MODULE`).
+- **Score Externe** : Les afficheurs 7 segments affichent les highscores, compteurs d'échanges, temps, etc. selon le contexte du jeu.
 - **Table de partition** : Le projet utilise un fichier `default_ota.csv` pour définir une structure de mémoire compatible avec les mises à jour OTA.
 - **Gestion WiFi** : La bibliothèque `tzapu/WiFiManager` est utilisée pour créer un portail de configuration captif.
-- **Mises à jour OTA** : Le système peut se mettre à jour via WiFi en interrogeant l'API GitHub pour la "dernière release". Il télécharge le binaire, vérifie son intégrité avec une empreinte MD5, et l'installe. La version et le MD5 sont gérés par un script Python (`post_build.py`) qui s'exécute après la compilation. Ce script peut également, si un token GitHub est fourni, créer automatiquement une "release" sur GitHub et y publier le firmware et le fichier de version, rendant le processus de déploiement entièrement automatisé.
-- **Machine d'états** : Le projet utilise une machine d'états simple (`enum AppState`) pour gérer les différents modes : `STATE_MENU`, `STATE_PONG`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
-- **Menu Réglages** : Permet de configurer la luminosité (sauvegardée en mémoire NVS), de lancer le portail de configuration WiFi, et de lancer le processus de mise à jour OTA.
+- **Mises à jour OTA** : Le système peut se mettre à jour via WiFi en interrogeant l'API GitHub pour la "dernière release". Il télécharge le binaire, vérifie son intégrité avec une empreinte MD5, et l'installe. Le script `post_build.py` peut créer automatiquement la release GitHub si un token est fourni.
+- **Version firmware** : Format string "X.Y" (comparaison numérique composant par composant). Le `version.json` contient le MD5 indexé par plateforme (`md5["esp32-c3-devkitm-1"]`).
+- **Machine d'états** : `enum AppState` dans `shared.h` : `STATE_MENU`, `STATE_PONG`, `STATE_CHRONO`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
+
+## Organisation du Code
+- **`shared.h`** : Defines hardware, AppState, variables globales (leds, brightness), fonction XY().
+- **`display.h/cpp`** : Police 3x5, drawChar, drawString, drawCenteredString, invertText.
+- **`buzzer.h/cpp`** : Bips non-bloquants, bip double, effet pouvoir.
+- **`score7seg.h/cpp`** : Affichage sur les modules 7 segments (entiers et décimaux).
+- **`game.h/cpp`** : Code partagé entre les jeux (animations set gagnant, nouveau record, fanfare, verrou, vies).
+- **`pong.h/cpp`** : Jeu Pong avec sous-menu SOLO/DUO, bot IA, compteur d'échanges, highscores.
+- **`chrono.h/cpp`** : Jeu Chrono avec sous-menu SOLO/DUO, système de verrous, highscores.
+- **`settings.h/cpp`** : Menu réglages (luminosité, OTA, WiFi).
+- **`test.h/cpp`** : Mode test hardware.
+- **`main.cpp`** : Setup, loop, menu principal, écran d'accueil.
+- **`post_build.py`** : Script post-compilation (packaging firmware, release GitHub automatique).
 
 ## Règles de Code (Coding Guidelines)
-1. **Non-bloquant** : L'utilisation de la fonction `delay()` est **strictement interdite** dans la boucle de jeu principale (`loopPong` pendant les échanges) afin de ne pas rater les inputs. Les `delay()` sont tolérés pour des animations courtes et bloquantes (ex: fin de partie, messages temporaires) où la réactivité n'est pas critique.
-2. **Anti-rebond / Inputs** : Les boutons utilisent les pull-ups internes (`INPUT_PULLUP`). La détection se fait sur le front descendant (passage de `HIGH` à `LOW`) en comparant l'état actuel et précédent, pour éviter la triche (maintien du bouton).
-3. **Langue** : Les noms de variables, fonctions et les commentaires doivent être en **Français**. Le code doit être clair et organisé par blocs logiques.
-4. **Rendu FastLED** : Le cycle d'affichage doit toujours respecter ce pattern : calcul de la logique -> `FastLED.clear()` -> application des couleurs -> `FastLED.show()`.
-5. **Navigation** : Pour quitter un jeu ou un menu, la norme est d'appuyer simultanément sur les deux boutons de navigation gauches (`Vert 1 + Vert 2`).
+1. **Non-bloquant** : `delay()` interdit dans les boucles de jeu pendant les échanges. Tolérés pour les animations courtes (fin de partie, messages).
+2. **Anti-rebond / Inputs** : Pull-ups internes (`INPUT_PULLUP`). Détection sur front descendant (HIGH → LOW).
+3. **Langue** : Variables, fonctions et commentaires en **Français**.
+4. **Rendu FastLED** : Logique → `FastLED.clear()` → couleurs → `FastLED.show()`.
+5. **Navigation** : Vert 1 + Vert 2 simultanément = retour au menu/sous-menu parent.
+6. **Highscores** : Sauvegardés en NVS (Preferences) uniquement quand un nouveau record est battu.
+7. **Sous-menus jeux** : Chaque jeu a un sous-menu SOLO/DUO avec affichage du highscore correspondant sur les 7 segments.
+8. **Code partagé** : Les animations et mécaniques communes (verrou, vies, fanfare, record) sont dans `game.h/cpp`.
 
-## Mécaniques de jeu (à ne pas casser)
-- **Accélération** : La vitesse de la balle augmente (le délai en ms diminue) à chaque échange réussi.
-- **Mort subite** : Une fois la vitesse maximale atteinte, la taille de la zone de renvoi (raquette) diminue toutes les deux frappes.
-- **Système de Fautes** : Appuyer sur le bouton avant que la balle ne soit dans la zone de la raquette entraîne une perte immédiate de la manche (anti-spam).
-- **Verrou de Service** : Après un point, le joueur en défense doit déverrouiller l'engagement (LED orange) en appuyant sur son bouton avant que le serveur puisse engager.
-- **Engagement** : Le joueur qui a perdu le point (ou la partie précédente) a toujours l'avantage de l'engagement suivant.
-- **Pouvoirs Aléatoires** : Frapper sur la dernière LED octroie un pouvoir au hasard (1=Dash, 2=Invisibilité, 3=Bouclier passif). Frapper sur la première LED annule le pouvoir adverse.
-- **Sons dynamiques** : Le pitch du buzzer monte de +50Hz à chaque accélération de la balle.
+## Mécaniques de jeu Pong
+- **Accélération** : La vitesse augmente à chaque échange réussi.
+- **Mort subite** : Raquettes rétrécissent au-delà de la vitesse max.
+- **Système de Fautes** : Frapper dans le vide = perte de manche.
+- **Verrou de Service** : LED orange, le défenseur doit déverrouiller avant le service.
+- **Engagement** : Le perdant du point a l'avantage de l'engagement suivant.
+- **Pouvoirs** : LED mur (la plus éloignée du centre) = obtenir un pouvoir. LED centre (la plus proche) = détruire le pouvoir adverse.
+  - Pouvoir 1 = Dash (15 LEDs à vitesse fulgurante)
+  - Pouvoir 2 = Invisibilité (16 LEDs)
+  - Pouvoir 3 = Bouclier (passif, rebond auto)
+- **Sons dynamiques** : Pitch monte de +50Hz à chaque accélération.
+- **Mode SOLO** : Bot imbattable, seul pouvoir 3 disponible, score = échanges cumulés.
+
+## Mécaniques de jeu Chrono
+- **Durée cible** : Aléatoire entre 9 et 30 secondes (entières).
+- **Chrono visible** : Affiché par incrément de 1s pendant les 5 premières secondes, puis éteint.
+- **Écart** : Valeur absolue entre le temps d'appui et la cible, en centièmes de seconde.
+- **Mode SOLO** : 3 manches systématiques, score = écart cumulé (plus petit = meilleur).
+- **Mode DUO** : Le plus gros écart perd une vie. Highscore = cumul des deux joueurs.
+- **Affichage** : Temps au format SS.MM (4 digits) sur les 7 segments.
+- **Verrou** : Identique au Pong, LED jaune après les vies.
 
 ## Idées et Améliorations futures
-- Ajout d'une animation d'attente (Idle) lorsque le jeu n'est pas utilisé.
-- Variations de couleurs dynamiques en fonction de la vitesse de la balle.
+- Ajout d'autres jeux (Simon, Reaction, Runner...).
+- Animation d'attente (Idle) lorsque le jeu n'est pas utilisé.
+- Épinglage du certificat HTTPS pour l'OTA.

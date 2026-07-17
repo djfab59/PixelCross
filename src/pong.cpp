@@ -2,6 +2,7 @@
 #include "display.h"
 #include "buzzer.h"
 #include "score7seg.h"
+#include "game.h"
 #include "pong.h"
 #include <Preferences.h>
 
@@ -74,31 +75,6 @@ static void sauvegarderHighscore(bool solo) {
   if (solo) prefs.putInt("hs_solo", highscoreSolo);
   else prefs.putInt("hs_duo", highscoreDuo);
   prefs.end();
-}
-
-// --- ANIMATION NOUVEAU RECORD ---
-static void animationNouveauRecord() {
-  // Clignotement bleu/dore rapide de toute la matrice + clignotement du score sur 7 segments
-  int score = modeSolo ? highscoreSolo : highscoreDuo;
-  for (int i = 0; i < 6; i++) {
-    // Flash dore
-    for (int j = 0; j < NUM_LEDS; j++) leds[j] = CRGB(255, 180, 0);
-    afficherScore7Seg(score, score);
-    FastLED.show();
-    ledcWriteTone(BUZZER_CHANNEL, 1500 + i * 200);
-    ledcWrite(BUZZER_CHANNEL, 127);
-    delay(100);
-    // Flash bleu
-    for (int j = 0; j < NUM_LEDS; j++) leds[j] = CRGB(0, 50, 255);
-    afficherScore7Seg(-1, -1);
-    FastLED.show();
-    ledcWriteTone(BUZZER_CHANNEL, 0);
-    ledcWrite(BUZZER_CHANNEL, 0);
-    delay(100);
-  }
-  // Final : affiche le score une derniere fois
-  afficherScore7Seg(score, score);
-  delay(500);
 }
 
 // --- FONCTION FACTORISEE POUR GERER LA FRAPPE D'UN JOUEUR ---
@@ -504,57 +480,20 @@ static void loopPlaying() {
               if (nouveauRecord) {
                 highscoreSolo = compteurEchanges;
                 sauvegarderHighscore(true);
-                animationNouveauRecord();
+                animationNouveauRecord(highscoreSolo);
                 dernierMatchGagne = true;
-                // Sequence vert gagne
-                CRGB couleurGagnant = CRGB::Green;
-                FastLED.clear();
-                for (int x = 1; x <= MATRIX_WIDTH; x++) {
-                  for (int y = 1; y <= MATRIX_HEIGHT; y++) leds[XY(x, y)] = couleurGagnant;
-                  FastLED.show(); delay(30);
-                }
+                animationSetGagnant(true);
               } else {
                 dernierMatchGagne = false;
-                // Sequence rouge gagne
-                CRGB couleurGagnant = CRGB::Red;
-                FastLED.clear();
-                for (int x = 1; x <= MATRIX_WIDTH; x++) {
-                  int colonne = MATRIX_WIDTH - x + 1;
-                  for (int y = 1; y <= MATRIX_HEIGHT; y++) leds[XY(colonne, y)] = couleurGagnant;
-                  FastLED.show(); delay(30);
-                }
+                animationSetGagnant(false);
               }
-
-              ledcWriteTone(BUZZER_CHANNEL, 0);
-              ledcWrite(BUZZER_CHANNEL, 0);
-              delay(200);
-              int notes[] = {392, 523, 659, 784, 659, 784};
-              int durees[] = {150, 150, 150, 300, 150, 500};
-              for (int i = 0; i < 6; i++) {
-                ledcWriteTone(BUZZER_CHANNEL, notes[i]);
-                ledcWrite(BUZZER_CHANNEL, 127);
-                delay(durees[i]);
-                ledcWriteTone(BUZZER_CHANNEL, 0);
-                ledcWrite(BUZZER_CHANNEL, 0);
-                delay(50);
-              }
-              delay(1000);
+              jouerFanfare();
               afficherScore7Seg(compteurEchanges, compteurEchanges);
               partieTerminee = true;
 
             } else {
               // SOLO : perte d'une vie (pas la derniere)
-              declencherBip(300, 600);
-              CRGB couleurVie = CRGB(127, 10, 73);
-              for (int i = 0; i < 3; i++) {
-                FastLED.clear();
-                for (int v = 0; v < viesVert; v++) leds[XY(1 + v, 1)] = couleurVie;
-                FastLED.show(); delay(250);
-                FastLED.clear();
-                for (int v = 0; v < viesVert; v++) leds[XY(1 + v, 1)] = couleurVie;
-                leds[XY(1 + viesVert, 1)] = couleurVie;
-                FastLED.show(); delay(350);
-              }
+              animationPerteVieSolo(viesVert);
               // On ne reset pas le compteur d'echanges (cumule)
               posX = 16;
               enAttenteEngagement = true;
@@ -588,58 +527,21 @@ static void loopPlaying() {
               if (nouveauRecord) {
                 highscoreDuo = compteurEchanges;
                 sauvegarderHighscore(false);
-                animationNouveauRecord();
+                animationNouveauRecord(highscoreDuo);
               }
 
               // Sequence vainqueur
-              ledcWriteTone(BUZZER_CHANNEL, 150);
-              ledcWrite(BUZZER_CHANNEL, 127);
-              CRGB couleurGagnant = (viesVert <= 0) ? CRGB::Red : CRGB::Green;
-              FastLED.clear();
-              for (int x = 1; x <= MATRIX_WIDTH; x++) {
-                int colonne = (viesVert <= 0) ? (MATRIX_WIDTH - x + 1) : x;
-                for (int y = 1; y <= MATRIX_HEIGHT; y++) leds[XY(colonne, y)] = couleurGagnant;
-                FastLED.show(); delay(30);
-              }
-              ledcWriteTone(BUZZER_CHANNEL, 0);
-              ledcWrite(BUZZER_CHANNEL, 0);
-              delay(200);
+              bool vertGagne = (viesRouge <= 0);
+              animationSetGagnant(vertGagne);
+              jouerFanfare();
 
-              int notes[] = {392, 523, 659, 784, 659, 784};
-              int durees[] = {150, 150, 150, 300, 150, 500};
-              for (int i = 0; i < 6; i++) {
-                ledcWriteTone(BUZZER_CHANNEL, notes[i]);
-                ledcWrite(BUZZER_CHANNEL, 127);
-                delay(durees[i]);
-                ledcWriteTone(BUZZER_CHANNEL, 0);
-                ledcWrite(BUZZER_CHANNEL, 0);
-                delay(50);
-              }
-              delay(1000);
               // Apres la sequence, affiche les victoires
               afficherScore7Seg(victoiresVert, victoiresRouge);
               partieTerminee = true;
             } else {
               // DUO : perte d'une vie (pas la derniere)
-              declencherBip(300, 600);
-              CRGB couleurVie = CRGB(127, 10, 73);
-              for (int i = 0; i < 3; i++) {
-                FastLED.clear();
-                for (int v = 0; v < viesVert; v++) leds[XY(1 + v, 1)] = couleurVie;
-                for (int v = 0; v < viesRouge; v++) leds[XY(32 - v, 8)] = couleurVie;
-                FastLED.show(); delay(250);
-                FastLED.clear();
-                for (int v = 0; v < viesVert; v++) leds[XY(1 + v, 1)] = couleurVie;
-                for (int v = 0; v < viesRouge; v++) leds[XY(32 - v, 8)] = couleurVie;
-                if (vertARate) leds[XY(1 + viesVert, 1)] = couleurVie;
-                else leds[XY(32 - viesRouge, 8)] = couleurVie;
-                for (int p = 1; p <= TRACK_LENGTH; p++) {
-                  int bx = (p <= 32) ? p : p - 32;
-                  int by = (p <= 32) ? 4 : 5;
-                  leds[XY(bx, by)] = couleurPoint;
-                }
-                FastLED.show(); delay(350);
-              }
+              CRGB couleurPiste = vertARate ? CRGB(80, 0, 0) : CRGB(0, 80, 0);
+              animationPerteVie(viesVert, viesRouge, vertARate, couleurPiste);
               // Reset set mais pas compteur echanges (cumule)
               posX = (joueurEngagement == -1) ? 16 : 48;
               enAttenteEngagement = true;
@@ -668,12 +570,11 @@ static void loopPlaying() {
   for (int x = 32 - tailleRaquette + 1; x <= 32; x++) leds[XY(x, 5)] = CRGB(80, 0, 0);
 
   // Vies vertes
-  CRGB couleurVie = CRGB(127, 10, 73);
-  for (int i = 0; i < viesVert; i++) leds[XY(1 + i, 1)] = couleurVie;
+  dessinerViesVert(viesVert);
 
   // Vies rouges (DUO uniquement)
   if (!modeSolo) {
-    for (int i = 0; i < viesRouge; i++) leds[XY(32 - i, 8)] = couleurVie;
+    dessinerViesRouge(viesRouge);
   }
 
   // Pouvoirs vert (SOLO : seul pouvoir 3 affiche)

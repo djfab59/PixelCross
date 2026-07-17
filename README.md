@@ -1,155 +1,123 @@
-# 🏓 PixelCross - Le Pong LED 1D XXL
+# 🏓 PixelCross - Console de jeux LED
 
-PixelCross est une réinvention intense et dynamique du célèbre jeu Pong, jouable sur une matrice de LEDs WS2812B (8x32). Développé sur un microcontrôleur **ESP32-C3 SuperMini**, ce jeu transforme une simple matrice en un véritable terrain d'affrontement compétitif avec gestion de la physique, des fautes et de la mort subite !
+PixelCross est une console de jeux rétro jouable sur une matrice de LEDs WS2812B (8x32). Développée sur un microcontrôleur **ESP32-C3 SuperMini**, elle transforme une simple matrice en un véritable terrain d'affrontement compétitif avec plusieurs jeux, un système de highscore, et des mises à jour OTA automatiques.
 
 ## ✨ Fonctionnalités
 
-- **Terrain XXL replié :** Le terrain de jeu fait 64 LEDs de long ! Il part de la ligne 4 (camp gauche) et se prolonge sans coupure sur la ligne 5 (camp droit) pour créer un effet de profondeur.
-- **Physique dynamique :** La balle accélère à chaque échange réussi.
-- **Mécanique de Faute (Anti-Spam) :** Appuyer avant que la balle n'entre dans la zone de votre raquette vous fait instantanément perdre la manche !
-- **Mode "Mort Subite" :** Une fois la vitesse maximale de la balle atteinte, la taille des raquettes se réduit toutes les deux frappes (passant de 5 LEDs à 2 LEDs) pour forcer l'erreur.
-- **Vies et Mode Tournoi :** 3 vies par joueur affichées sur la matrice (en rose). Les afficheurs 7 segments externes agissent comme un compteur global de victoires (jusqu'à 9999) !
-- **Verrou de Sécurité :** L'engagement est bloqué tant que le joueur en défense n'a pas signalé qu'il est prêt.
-- **Mises à jour OTA :** Le firmware peut être mis à jour sans fil via WiFi directement depuis les "releases" du dépôt GitHub.
-- **Menu de Réglages :**
-  - Ajustement de la luminosité (avec correction gamma et sauvegarde).
-  - Configuration WiFi simplifiée via un portail captif (`WiFiManager`).
-  - Lancement de la vérification et de l'installation des mises à jour.
-- **Pouvoirs Aléatoires :** Frappez la balle sur la dernière LED pour obtenir un "Dash", une "Invisibilité" ou un "Bouclier" !
-- **Animations :** Clignotement de point, balayage coloré (wipe) pour le grand gagnant de la partie.
-- **Audio Dynamique :** Effets sonores non-bloquants avec tension croissante et fanfare de victoire.
-- **Gestion de l'alimentation :** Consommation plafonnée intelligemment à 2.5A grâce au gestionnaire d'énergie de FastLED.
+- **Multi-jeux** : Pong 1D (Solo/Duo) et Chrono (Solo/Duo), avec un système de menu et sous-menus.
+- **Écran d'accueil** : Animation "PXLCROSS" qui descend avec changement de couleur et mélodie au démarrage.
+- **Highscores** : Sauvegardés en mémoire NVS, affichés sur les 7 segments dans les sous-menus.
+- **Mises à jour OTA** : Le firmware peut être mis à jour sans fil via WiFi directement depuis les "releases" du dépôt GitHub.
+- **Menu de Réglages** : Luminosité (avec correction gamma), mise à jour OTA, configuration WiFi.
+- **Audio Dynamique** : Effets sonores non-bloquants avec tension croissante et fanfares.
+- **Gestion de l'alimentation** : Consommation plafonnée à 2.5A grâce au gestionnaire d'énergie de FastLED.
+
+---
+
+## 🎮 Jeux disponibles
+
+### 🏓 PONG (Solo & Duo)
+
+Un Pong 1D XXL sur 64 LEDs avec physique dynamique, pouvoirs aléatoires et mort subite.
+
+**Mode SOLO :**
+- Bot imbattable (renvoie toujours)
+- 3 vies, seul le pouvoir Bouclier est disponible
+- Score = nombre d'échanges cumulé sur les 3 vies
+- Highscore sauvegardé en mémoire
+
+**Mode DUO :**
+- 2 joueurs, 3 vies chacun, tous les pouvoirs actifs
+- Compteur d'échanges cumulé sur la partie
+- Highscore duo (meilleur nombre d'échanges) sauvegardé
+- Compteur de victoires (non sauvegardé, reset quand on quitte)
+
+**Mécaniques :**
+- Terrain de 64 LEDs (ligne 4 + ligne 5)
+- Accélération à chaque échange
+- Mort subite : raquettes rétrécissent au-delà de la vitesse max
+- Verrou de service (LED orange)
+- Pouvoirs : Dash, Invisibilité, Bouclier
+- Contre : frapper sur la LED mur détruit le pouvoir adverse
+
+### ⏱️ CHRONO (Solo & Duo)
+
+Jeu de précision inspiré de Fort Boyard : deviner une durée dans sa tête.
+
+**Déroulement :**
+1. Une durée aléatoire (9-30 secondes) s'affiche sur la matrice
+2. Le chrono s'affiche sur les 7 segments pendant 5 secondes puis s'éteint
+3. Les joueurs comptent dans leur tête et appuient quand ils pensent que le temps est écoulé
+4. L'écart par rapport à la cible détermine le résultat
+
+**Mode SOLO :**
+- 3 manches (perte d'une vie à chaque manche)
+- Score = écart cumulé en centièmes de seconde (plus c'est petit, mieux c'est)
+- Highscore sauvegardé
+
+**Mode DUO :**
+- 3 vies chacun, celui avec le plus gros écart perd une vie
+- Highscore = plus petit écart cumulé des deux joueurs ensemble
+- Animation spéciale si nouveau record
+
+---
 
 ## 🛠️ Matériel Requis
 
 - 1x **ESP32-C3 SuperMini** (ou équivalent)
 - 1x **Matrice LED WS2812B 8x32** (256 LEDs)
-- 2x Boutons poussoirs d'arcade (ex: Vert et Rouge)
+- 2x Boutons poussoirs d'arcade (Vert et Rouge) + 4 boutons de navigation
+- 2x Modules 4x7 Segments (via 74HC595 en série)
 - 1x Buzzer passif + Transistor (ex: 2N2222) et résistance (1kΩ)
-- 1x Alimentation externe 5V 3A (Recommandé pour ne pas griller le port USB)
-- Des câbles Dupont
+- 1x Alimentation externe 5V 3A
 
 ## 🔌 Câblage
 
-⚠️ **ATTENTION :** Ne jamais alimenter la matrice LED 8x32 uniquement via l'ESP32 au risque de détruire votre carte ou votre port USB. Utilisez une alimentation 5V externe et **reliez toutes les masses (GND) ensemble**.
+⚠️ **ATTENTION :** Ne jamais alimenter la matrice LED 8x32 uniquement via l'ESP32. Utilisez une alimentation 5V externe et **reliez toutes les masses (GND) ensemble**.
 
-| Composant | Broche | Connexion ESP32-C3 / Alim |
+| Composant | Broche | Connexion |
 | :--- | :--- | :--- |
-| **Matrice LED** | `5V` (VCC) | 5V Alimentation Externe |
-| | `GND` | GND (Alim) + GND (ESP32) |
-| | `DIN` (Data) | GPIO **3** |
-| **Bouton Vert (Action/Valid.)**| Patte 1 | GPIO **0** |
-| | Patte 2 | GND |
-| **Bouton Vert 1 (Gauche)** | Patte 1 | GPIO **1** |
-| | Patte 2 | GND |
-| **Bouton Vert 2 (Droite)** | Patte 1 | GPIO **2** |
-| | Patte 2 | GND |
-| **Bouton Rouge (Action)** | Patte 1 | GPIO **5** |
-| | Patte 2 | GND |
-| **Bouton Rouge 1 (Futur)** | Patte 1 | GPIO **6** |
-| | Patte 2 | GND |
-| **Bouton Rouge 2 (Futur)** | Patte 1 | GPIO **7** |
-| | Patte 2 | GND |
-| **Afficheurs Score** | `SDI` | GPIO **8** |
-| (2x Modules 4x7 Segments)| `SCLK`| GPIO **9** |
-| via 74HC595 en série | `LOAD`| GPIO **10** |
+| **Matrice LED** | `DIN` | GPIO **3** |
+| **Bouton Vert (Action)** | | GPIO **0** |
+| **Bouton Vert 1 (Gauche)** | | GPIO **1** |
+| **Bouton Vert 2 (Droite)** | | GPIO **2** |
+| **Bouton Rouge (Action)** | | GPIO **5** |
+| **Bouton Rouge 1** | | GPIO **6** |
+| **Bouton Rouge 2** | | GPIO **7** |
+| **Afficheurs 7 Seg** | `SDI` | GPIO **8** |
+| | `SCLK` | GPIO **9** |
+| | `LOAD` | GPIO **10** |
 | **Buzzer** | Signal | GPIO **4** (via transistor) |
-
-*Note : Les boutons utilisent le mode `INPUT_PULLUP` interne de l'ESP32, il n'y a donc pas besoin de résistances externes.*
 
 ## 🚀 Installation & Compilation
 
 Ce projet est conçu avec **PlatformIO** (VS Code).
 
 1. Clonez ce dépôt.
-2. Ouvrez le dossier du projet dans **VS Code** avec l'extension **PlatformIO** installée.
-3. Branchez votre ESP32-C3 SuperMini via USB.
-4. Cliquez sur le bouton **Upload and Monitor** (la flèche en bas de l'écran) pour compiler le projet et le flasher sur la carte.
+2. Ouvrez le dossier dans VS Code avec PlatformIO.
+3. Branchez l'ESP32-C3 via USB.
+4. Cliquez sur **Upload and Monitor**.
 
-### Dépendances
-Les librairies suivantes seront téléchargées automatiquement par PlatformIO :
+### Dépendances (téléchargées automatiquement)
 * `fastled/FastLED`
 * `tzapu/WiFiManager`
 * `bblanchon/ArduinoJson`
 
-## 🎮 Comment Jouer ?
+## 🧭 Navigation
 
-### 🧭 Menu Principal
-Au démarrage, vous êtes dans le menu principal. Utilisez les boutons **Vert 1** (Gauche) et **Vert 2** (Droite) pour naviguer entre les options (`PONG`, `REGLAGES`, `TEST`) et le bouton **Vert** pour valider votre choix.
+- **Menu principal** : Vert 1 / Vert 2 pour naviguer, Vert pour valider.
+- **Retour** : Appuyez simultanément sur Vert 1 + Vert 2 pour revenir en arrière.
+- **Sous-menus jeux** : Même navigation pour choisir SOLO / DUO.
 
-**Navigation / Retour au menu** : À tout moment (dans le menu ou en plein jeu), appuyez simultanément sur **Vert 1** et **Vert 2** pour revenir au menu principal (cela réinitialise les scores du tournoi).
+## 🧑‍💻 Processus de mise à jour OTA
 
-### ⚙️ Menu Réglages
-Dans ce menu, vous pouvez :
-- **LIGHT :** Ajuster la luminosité de la matrice. L'appui long est supporté pour un réglage rapide. La valeur est sauvegardée.
-- **WIFI :** Lancer le portail de configuration. Connectez-vous au réseau `PixelCross-Setup` avec votre téléphone pour entrer les identifiants de votre WiFi.
-- **UPDATE :** Lance la procédure de mise à jour Over-The-Air (OTA). L'appareil se connecte à GitHub, vérifie si une nouvelle version est disponible et, le cas échéant, la télécharge et l'installe automatiquement avant de redémarrer.
+1. Modifiez `FIRMWARE_VERSION` dans `src/shared.h` (format "X.Y").
+2. Compilez avec `pio run`.
+3. Le script `post_build.py` package le firmware et crée automatiquement la release GitHub (si `.github_token` est configuré).
+4. Les appareils existants trouvent et installent la mise à jour via le menu "UPDATE".
 
-## 🧑‍💻 Pour les développeurs : Processus de mise à jour OTA
- 
-Le système de mise à jour est conçu pour être simple et peut être entièrement automatisé.
- 
-### Étape 1 : Préparation
-Avant de compiler une nouvelle version, modifiez la constante `FIRMWARE_VERSION` dans le fichier `src/shared.h`.
- 
-### Étape 2 : Compilation
-Lancez une compilation avec PlatformIO. Le script `post_build.py` s'exécutera automatiquement et va :
-- Créer un fichier `firmware/firmware-esp32-c3-devkitm-1.zip`.
-- Calculer son empreinte MD5.
-- Mettre à jour le fichier `firmware/version.json` avec le nouveau numéro de version et l'empreinte MD5.
- 
-### Étape 3 : Publication de la Release (Automatisée ou Manuelle)
- 
-#### Option A : Publication Automatisée (Recommandé)
-Pour que la release soit créée et publiée automatiquement sur GitHub après la compilation :
-1.  Créez un Personal Access Token (classic) sur GitHub avec les permissions `repo` (ou `public_repo` si le dépôt est public).
-2.  À la racine du projet, créez un fichier nommé `.github_token`.
-3.  Collez votre token dans ce fichier.
- 
-Lors de la prochaine compilation, si la version a changé, le script créera une nouvelle "release" sur GitHub, y attachera les fichiers `version.json` et `firmware-....zip`, et la publiera.
- 
-#### Option B : Publication Manuelle
-Si vous ne configurez pas l'automatisation :
-1.  Créez manuellement une nouvelle "release" sur le dépôt GitHub.
-2.  Attachez-y les deux fichiers générés par le script de compilation : `firmware/version.json` et `firmware/firmware-esp32-c3-devkitm-1.zip`.
-3.  **Important :** Assurez-vous que la release est marquée comme "latest".
- 
-### Étape 4 : Mise à jour sur l'appareil
-Les appareils existants trouveront et installeront la mise à jour via le menu "UPDATE".
-
----
-
-### 🏓 Le Jeu (Pong)
-
-**1. Démarrage et Engagement**
-- Le joueur qui vient de perdre le point (ou la partie précédente) obtient l'avantage de l'engagement. La balle prend sa couleur.
-* Le joueur en défense possède un **verrou (LED Orange)**. Il doit appuyer sur son bouton pour débloquer le service.
-* L'attaquant appuie ensuite sur son bouton pour engager. S'il le fait trop tôt, une erreur sonore retentit !
-
-**2. Les Échanges**
-* La balle devient jaune.
-* Le joueur adverse (Rouge) doit appuyer sur son bouton **uniquement** quand la balle survole sa zone de raquette (les LEDs lumineuses rouges en fin de piste).
-* À chaque renvoi parfait, la vitesse de la balle augmente.
-
-**3. Fautes et Pénalités**
-* Taper dans le vide = Manche perdue (perte d'une vie).
-* Rater la balle = Manche perdue.
-
-**4. Pouvoirs (Nouveau !)**
-* Si vous frappez la balle exactement sur la **toute dernière LED** de votre camp, vous obtenez un pouvoir (LED Bleue).
-* *Dash (LED 1)* : La balle fonce à une vitesse fulgurante sur 15 LEDs lors du renvoi.
-* *Invisibilité (LED 2)* : La balle disparaît pendant 16 LEDs.
-* *Bouclier (LED 3)* : Pouvoir passif. Si vous ratez la balle, elle rebondit automatiquement.
-* *Contre* : Si vous frappez la balle sur la **première LED** de votre raquette, vous détruisez le pouvoir adverse.
-
-**5. Mort Subite**
-* Si les joueurs sont très bons et atteignent la vitesse max, la raquette de 5 LEDs commencera à se réduire (4, 3, puis 2 LEDs) rendant le renvoi extrêmement difficile !
-
-**6. Fin de partie**
-* Le premier joueur qui perd ses 3 vies (les points roses) perd la partie.
-* Une grande animation aux couleurs du vainqueur balaie l'écran.
-* Le compteur de victoires (7 segments) du vainqueur augmente de 1.
-* Appuyez sur n'importe quel bouton pour relancer une toute nouvelle partie !
+### Publication automatique
+Créez un fichier `.github_token` à la racine contenant votre Personal Access Token GitHub (permission `Contents: Read and write`).
 
 ---
 *Créé avec passion (et quelques LEDs).*
