@@ -134,3 +134,17 @@ void animationPerteVieSolo(int viesVert) {
     delay(350);
   }
 }
+
+// --- SONS DE JEU PARTAGES ---
+
+void sonTir() {
+  declencherBipDouble(600, 1200, 40, 60);
+}
+
+void sonInterception() {
+  declencherBipDouble(1000, 400, 60, 80);
+}
+
+void sonBut() {
+  declencherBipDouble(1500, 2000, 80, 120);
+}

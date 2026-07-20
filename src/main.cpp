@@ -7,6 +7,7 @@
 #include "score7seg.h"
 #include "pong.h"
 #include "chrono.h"
+#include "goal.h"
 #include "settings.h"
 #include "test.h"
 
@@ -19,7 +20,7 @@ AppState currentState = STATE_MENU; // L'application demarre sur le Menu
 
 // Variables pour le systeme de Menu
 int menuIndex = 0;
-const int NUM_MENU_ITEMS = 4; // Pong, Chrono, Reglages, Test
+const int NUM_MENU_ITEMS = 4; // Pong, Chrono, Goal, Reglages
 bool prevGreen1 = HIGH;
 bool prevGreen2 = HIGH;
 bool prevGreen = HIGH;
@@ -140,9 +141,9 @@ void drawMenu() {
   } else if (menuIndex == 1) {
     drawCenteredString("CHRONO", 2, CRGB::Green);
   } else if (menuIndex == 2) {
-    drawCenteredString("REGLAGES", 2, CRGB::Green);
+    drawCenteredString("GOAL", 2, CRGB::Green);
   } else if (menuIndex == 3) {
-    drawCenteredString("TEST", 2, CRGB::Green);
+    drawCenteredString("REGLAGES", 2, CRGB::Green);
   }
   FastLED.show();
 }
@@ -171,11 +172,11 @@ void loopMenu() {
       initChrono();
       currentState = STATE_CHRONO;
     } else if (menuIndex == 2) {
+      initGoal();
+      currentState = STATE_GOAL;
+    } else if (menuIndex == 3) {
       initSettings();
       currentState = STATE_SETTINGS;
-    } else if (menuIndex == 3) {
-      initTest();
-      currentState = STATE_TEST;
     }
   }
 
@@ -195,6 +196,8 @@ void loop() {
     loopPong();
   } else if (currentState == STATE_CHRONO) {
     loopChrono();
+  } else if (currentState == STATE_GOAL) {
+    loopGoal();
   } else if (currentState == STATE_SETTINGS) {
     loopSettings();
   } else if (currentState == STATE_TEST) {

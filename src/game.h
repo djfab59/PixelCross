@@ -41,4 +41,15 @@ void animationPerteVie(int viesVert, int viesRouge, bool vertAPerdu, CRGB couleu
 // Animation de clignotement perte de vie (SOLO, sans affichage rouge)
 void animationPerteVieSolo(int viesVert);
 
+// --- SONS DE JEU PARTAGES ---
+
+// Son de tir (bip montant court)
+void sonTir();
+
+// Son d'interception (bip descendant)
+void sonInterception();
+
+// Son de but (bip double aigu)
+void sonBut();
+
 #endif

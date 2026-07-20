@@ -45,6 +45,26 @@ static bool rougeAAppuye = false;
 static unsigned long tempsAppuiVert = 0;  // Temps en centièmes quand le vert a appuye
 static unsigned long tempsAppuiRouge = 0; // Temps en centièmes quand le rouge a appuye
 
+// --- INTERRUPTIONS POUR CAPTURER LE TEMPS EXACT D'APPUI ---
+static volatile unsigned long isrTimestampVert = 0;
+static volatile bool isrVertDeclenche = false;
+static volatile unsigned long isrTimestampRouge = 0;
+static volatile bool isrRougeDeclenche = false;
+
+static void IRAM_ATTR isrBoutonVert() {
+  if (!isrVertDeclenche) {
+    isrTimestampVert = millis();
+    isrVertDeclenche = true;
+  }
+}
+
+static void IRAM_ATTR isrBoutonRouge() {
+  if (!isrRougeDeclenche) {
+    isrTimestampRouge = millis();
+    isrRougeDeclenche = true;
+  }
+}
+
 // --- SCORES ---
 static int ecartCumuleVert = 0;   // Ecart cumule en centiemes (sur la partie)
 static int ecartCumuleRouge = 0;  // Ecart cumule en centiemes
@@ -240,6 +260,10 @@ static void loopAttente() {
     if (verrouVert && clicVert) {
       verrouVert = false;
       declencherBip(1000, 50);
+      // Active l'interruption pour capturer le temps exact
+      isrVertDeclenche = false;
+      isrRougeDeclenche = false;
+      attachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN), isrBoutonVert, FALLING);
       chronoDepart = millis();
       chronoState = CHRONO_COMPTE;
       return;
@@ -257,6 +281,11 @@ static void loopAttente() {
     // Des que les deux sont deverrouilles, le chrono demarre automatiquement
     if (!verrouVert && !verrouRouge) {
       declencherBip(1000, 50);
+      // Active les interruptions pour capturer le temps exact de chaque joueur
+      isrVertDeclenche = false;
+      isrRougeDeclenche = false;
+      attachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN), isrBoutonVert, FALLING);
+      attachInterrupt(digitalPinToInterrupt(BTN_RED_PIN), isrBoutonRouge, FALLING);
       chronoDepart = millis();
       chronoState = CHRONO_COMPTE;
       return;
@@ -289,6 +318,9 @@ static void loopCompte() {
   if (exitCombo && prevExitCombo == HIGH) {
     declencherBip(800, 50);
     afficherScore7Seg(-1, -1);
+    // Desactive les interruptions si encore actives
+    if (!vertAAppuye) detachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN));
+    if (!modeSolo && !rougeAAppuye) detachInterrupt(digitalPinToInterrupt(BTN_RED_PIN));
     chronoState = CHRONO_SUBMENU;
     subPrevExitCombo = HIGH;
     prevExitCombo = exitCombo;
@@ -310,22 +342,17 @@ static void loopCompte() {
     chronoState = CHRONO_SILENCE;
   }
 
-  // Lecture des boutons (un joueur peut appuyer pendant le compte visible)
-  bool actVert = digitalRead(BTN_GREEN_PIN);
-  bool actRouge = digitalRead(BTN_RED_PIN);
-  bool clicVert = (actVert == LOW && prevBtnVert == HIGH);
-  bool clicRouge = (actRouge == LOW && prevBtnRouge == HIGH);
-  prevBtnVert = actVert;
-  prevBtnRouge = actRouge;
-
-  if (clicVert && !vertAAppuye) {
+  // Lecture des appuis via les interruptions (timestamp exact)
+  if (isrVertDeclenche && !vertAAppuye) {
     vertAAppuye = true;
-    tempsAppuiVert = (millis() - chronoDepart) / 10; // En centiemes
+    tempsAppuiVert = (isrTimestampVert - chronoDepart) / 10;
+    detachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN));
     declencherBip(800, 30);
   }
-  if (!modeSolo && clicRouge && !rougeAAppuye) {
+  if (!modeSolo && isrRougeDeclenche && !rougeAAppuye) {
     rougeAAppuye = true;
-    tempsAppuiRouge = (millis() - chronoDepart) / 10;
+    tempsAppuiRouge = (isrTimestampRouge - chronoDepart) / 10;
+    detachInterrupt(digitalPinToInterrupt(BTN_RED_PIN));
     declencherBip(800, 30);
   }
 
@@ -357,6 +384,9 @@ static void loopSilence() {
   if (exitCombo && prevExitCombo == HIGH) {
     declencherBip(800, 50);
     afficherScore7Seg(-1, -1);
+    // Desactive les interruptions si encore actives
+    if (!vertAAppuye) detachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN));
+    if (!modeSolo && !rougeAAppuye) detachInterrupt(digitalPinToInterrupt(BTN_RED_PIN));
     chronoState = CHRONO_SUBMENU;
     subPrevExitCombo = HIGH;
     prevExitCombo = exitCombo;
@@ -364,22 +394,17 @@ static void loopSilence() {
   }
   prevExitCombo = exitCombo;
 
-  // Lecture des boutons
-  bool actVert = digitalRead(BTN_GREEN_PIN);
-  bool actRouge = digitalRead(BTN_RED_PIN);
-  bool clicVert = (actVert == LOW && prevBtnVert == HIGH);
-  bool clicRouge = (actRouge == LOW && prevBtnRouge == HIGH);
-  prevBtnVert = actVert;
-  prevBtnRouge = actRouge;
-
-  if (clicVert && !vertAAppuye) {
+  // Lecture des appuis via les interruptions (timestamp exact)
+  if (isrVertDeclenche && !vertAAppuye) {
     vertAAppuye = true;
-    tempsAppuiVert = (millis() - chronoDepart) / 10; // En centiemes
+    tempsAppuiVert = (isrTimestampVert - chronoDepart) / 10;
+    detachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN));
     declencherBip(800, 30);
   }
-  if (!modeSolo && clicRouge && !rougeAAppuye) {
+  if (!modeSolo && isrRougeDeclenche && !rougeAAppuye) {
     rougeAAppuye = true;
-    tempsAppuiRouge = (millis() - chronoDepart) / 10;
+    tempsAppuiRouge = (isrTimestampRouge - chronoDepart) / 10;
+    detachInterrupt(digitalPinToInterrupt(BTN_RED_PIN));
     declencherBip(800, 30);
   }
 
@@ -396,7 +421,7 @@ static void loopSilence() {
   dessinerViesVert(viesVert);
   if (!modeSolo) dessinerViesRouge(viesRouge);
   dessinerCible();
-  // Indicateur d'appui
+  // Indicateur d'appui (LED jaune = a appuye)
   if (vertAAppuye) dessinerVerrou(true, viesVert);
   if (!modeSolo && rougeAAppuye) dessinerVerrou(false, viesRouge);
   FastLED.show();

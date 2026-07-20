@@ -4,11 +4,11 @@ PixelCross est une console de jeux rétro jouable sur une matrice de LEDs WS2812
 
 ## ✨ Fonctionnalités
 
-- **Multi-jeux** : Pong 1D (Solo/Duo) et Chrono (Solo/Duo), avec un système de menu et sous-menus.
+- **Multi-jeux** : Pong 1D (Solo/Duo), Chrono (Solo/Duo) et Goal (Duo), avec un système de menu et sous-menus.
 - **Écran d'accueil** : Animation "PXLCROSS" qui descend avec changement de couleur et mélodie au démarrage.
 - **Highscores** : Sauvegardés en mémoire NVS, affichés sur les 7 segments dans les sous-menus.
 - **Mises à jour OTA** : Le firmware peut être mis à jour sans fil via WiFi directement depuis les "releases" du dépôt GitHub.
-- **Menu de Réglages** : Luminosité (avec correction gamma), mise à jour OTA, configuration WiFi.
+- **Menu de Réglages** : Luminosité (avec correction gamma), test hardware, mise à jour OTA, configuration WiFi.
 - **Audio Dynamique** : Effets sonores non-bloquants avec tension croissante et fanfares.
 - **Gestion de l'alimentation** : Consommation plafonnée à 2.5A grâce au gestionnaire d'énergie de FastLED.
 
@@ -59,6 +59,29 @@ Jeu de précision inspiré de Fort Boyard : deviner une durée dans sa tête.
 - 3 vies chacun, celui avec le plus gros écart perd une vie
 - Highscore = plus petit écart cumulé des deux joueurs ensemble
 - Animation spéciale si nouveau record
+
+### ⚽ GOAL (Duo uniquement)
+
+Football 2D avec un mur mobile au centre. Marquez plus de buts que l'adversaire en 60 secondes.
+
+**Terrain :**
+- Ligne 1 : Joueur Rouge (gardien 3 LEDs)
+- Ligne 2 : Ballon rouge (avant tir)
+- Lignes 3, 6 : Zones de transit (vides)
+- Lignes 4-5 : Mur bleu avec un trou de 3 LEDs qui se déplace
+- Ligne 7 : Ballon vert (avant tir)
+- Ligne 8 : Joueur Vert (gardien 3 LEDs)
+
+**Mécaniques :**
+- Déplacez votre gardien avec G1/G2 (ou R1/R2)
+- Tirez avec le bouton principal — le ballon part tout droit vers le camp adverse
+- Le ballon doit passer par le trou du mur ET éviter le gardien adverse pour marquer
+- Les ballons se télescopent s'ils se croisent sur la même case
+- Tempo unique (balle, mur, joueur) : accélère de 500ms à 150ms sur 60 secondes
+- Chrono sur les 7 segments (format SS.BB : secondes restantes + buts marqués)
+- Verrou de départ (LED jaune à la place du ballon)
+- Highscore = total des buts des deux joueurs (sauvegardé en NVS)
+- En cas d'égalité : celui qui a marqué le premier gagne
 
 ---
 

@@ -24,7 +24,9 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Gestion WiFi** : La bibliothèque `tzapu/WiFiManager` est utilisée pour créer un portail de configuration captif.
 - **Mises à jour OTA** : Le système peut se mettre à jour via WiFi en interrogeant l'API GitHub pour la "dernière release". Il télécharge le binaire, vérifie son intégrité avec une empreinte MD5, et l'installe. Le script `post_build.py` peut créer automatiquement la release GitHub si un token est fourni.
 - **Version firmware** : Format string "X.Y" (comparaison numérique composant par composant). Le `version.json` contient le MD5 indexé par plateforme (`md5["esp32-c3-devkitm-1"]`).
-- **Machine d'états** : `enum AppState` dans `shared.h` : `STATE_MENU`, `STATE_PONG`, `STATE_CHRONO`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
+- **Machine d'états** : `enum AppState` dans `shared.h` : `STATE_MENU`, `STATE_PONG`, `STATE_CHRONO`, `STATE_GOAL`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
+- **Menu principal** : PONG, CHRONO, GOAL, REGLAGES.
+- **Sous-menu Réglages** : LIGHT, TEST, UPDATE, WIFI.
 
 ## Organisation du Code
 - **`shared.h`** : Defines hardware, AppState, variables globales (leds, brightness), fonction XY().
@@ -34,7 +36,8 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **`game.h/cpp`** : Code partagé entre les jeux (animations set gagnant, nouveau record, fanfare, verrou, vies).
 - **`pong.h/cpp`** : Jeu Pong avec sous-menu SOLO/DUO, bot IA, compteur d'échanges, highscores.
 - **`chrono.h/cpp`** : Jeu Chrono avec sous-menu SOLO/DUO, système de verrous, highscores.
-- **`settings.h/cpp`** : Menu réglages (luminosité, OTA, WiFi).
+- **`goal.h/cpp`** : Jeu Goal (football 2D, chrono 60s, mur mobile, highscore).
+- **`settings.h/cpp`** : Menu réglages (luminosité, test, OTA, WiFi).
 - **`test.h/cpp`** : Mode test hardware.
 - **`main.cpp`** : Setup, loop, menu principal, écran d'accueil.
 - **`post_build.py`** : Script post-compilation (packaging firmware, release GitHub automatique).
@@ -70,6 +73,19 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Mode DUO** : Le plus gros écart perd une vie. Highscore = cumul des deux joueurs.
 - **Affichage** : Temps au format SS.MM (4 digits) sur les 7 segments.
 - **Verrou** : Identique au Pong, LED jaune après les vies.
+
+## Mécaniques de jeu Goal
+- **Terrain** : Ligne 1 = Rouge, Ligne 2 = Ballon rouge, Lignes 4-5 = Mur bleu avec trou, Ligne 7 = Ballon vert, Ligne 8 = Vert. Lignes 3 et 6 = transit.
+- **Joueurs** : 3 LEDs (gardien) déplaçables latéralement avec G1/G2 ou R1/R2. Position limitée de 2 à 31.
+- **Ballon** : Part du centre du joueur, avance d'une ligne par tempo. Couleur du joueur (jaune pendant le lock).
+- **Mur** : Bleu, trou de 3 LEDs qui rebondit de gauche à droite. Même tempo que la balle.
+- **Tir** : Un seul ballon en vol par joueur. Nouveau ballon uniquement après interception ou but.
+- **Interception** : Mur (ballon sur ligne 4/5 hors trou) ou gardien adverse (ballon sur ligne 1/8 dans les 3 LEDs).
+- **Collision ballon-ballon** : Si même case, les deux s'annulent.
+- **Tempo** : Unique pour tout (balle, mur, joueur). 500ms → 150ms linéaire sur 60 secondes.
+- **Score** : Chrono 60s affiché sur 7 segments (format SS.BB). Highscore = total buts des deux joueurs.
+- **Fin de partie** : Celui avec le plus de buts gagne. Égalité = premier buteur gagne.
+- **Verrou** : LED jaune à la place du ballon. Les deux joueurs doivent déverrouiller pour démarrer.
 
 ## Idées et Améliorations futures
 - Ajout d'autres jeux (Simon, Reaction, Runner...).

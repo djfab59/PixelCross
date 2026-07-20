@@ -3,6 +3,7 @@
 #include "buzzer.h"
 #include "score7seg.h"
 #include "settings.h"
+#include "test.h"
 #include <Preferences.h>
 #include <WiFiManager.h>
 #include <WiFi.h>
@@ -511,20 +512,22 @@ void loopSettings() {
     // --- MODE NAVIGATION DANS LE MENU REGLAGES ---
     if (clicG1) { // Naviguer vers le haut
       settingsMenuIndex--;
-      if (settingsMenuIndex < 0) settingsMenuIndex = 2; // 3 options: 0=LIGHT, 1=WIFI, 2=UPDATE
+      if (settingsMenuIndex < 0) settingsMenuIndex = 3; // 4 options: 0=LIGHT, 1=TEST, 2=UPDATE, 3=WIFI
       declencherBip(500, 30);
     }
     if (clicG2) { // Naviguer vers le bas
       settingsMenuIndex++;
-      if (settingsMenuIndex > 2) settingsMenuIndex = 0;
+      if (settingsMenuIndex > 3) settingsMenuIndex = 0;
       declencherBip(600, 30);
     }
 
     if (settingsMenuIndex == 0) {
       drawCenteredString("LIGHT", 2, CRGB::Green);
     } else if (settingsMenuIndex == 1) {
-      drawCenteredString("UPDATE", 2, CRGB::Green);
+      drawCenteredString("TEST", 2, CRGB::Green);
     } else if (settingsMenuIndex == 2) {
+      drawCenteredString("UPDATE", 2, CRGB::Green);
+    } else if (settingsMenuIndex == 3) {
       if (wifiConnected) drawCenteredString("WIFI OK", 2, CRGB::Green);
       else drawCenteredString("WIFI", 2, CRGB::Green);
     }
@@ -546,10 +549,14 @@ void loopSettings() {
         editingMode = true;
         declencherBip(800, 50);
       } else if (settingsMenuIndex == 1) {
+        // --- ACTION POUR "TEST" ---
+        initTest();
+        currentState = STATE_TEST;
+      } else if (settingsMenuIndex == 2) {
         // --- ACTION POUR "UPDATE" ---
         initOtaUpdate();
         currentState = STATE_OTA_UPDATE;
-      } else if (settingsMenuIndex == 2) {
+      } else if (settingsMenuIndex == 3) {
         currentState = STATE_WIFI_CONFIG;
       }
     }
