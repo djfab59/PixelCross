@@ -82,8 +82,8 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Tir** : Un seul ballon en vol par joueur. Nouveau ballon uniquement après interception ou but.
 - **Interception** : Mur (ballon sur ligne 4/5 hors trou) ou gardien adverse (ballon sur ligne 1/8 dans les 3 LEDs).
 - **Collision ballon-ballon** : Si même case, les deux s'annulent.
-- **Tempo** : Unique pour tout (balle, mur, joueur). 500ms → 150ms linéaire sur 60 secondes.
-- **Score** : Chrono 60s affiché sur 7 segments (format SS.BB). Highscore = total buts des deux joueurs.
+- **Tempo** : Unique pour mur et balle (500ms → 100ms linéaire sur 120 secondes). Joueurs 1.5x plus rapides que le tempo.
+- **Score** : Chrono 120s affiché sur 7 segments (format SS.BB). Highscore solo = max buts vert. Highscore duo = total buts des deux joueurs.
 - **Fin de partie** : Celui avec le plus de buts gagne. Égalité = premier buteur gagne.
 - **Verrou** : LED jaune à la place du ballon. Les deux joueurs doivent déverrouiller pour démarrer.
 

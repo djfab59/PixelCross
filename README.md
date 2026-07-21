@@ -77,8 +77,8 @@ Football 2D avec un mur mobile au centre. Marquez plus de buts que l'adversaire 
 - Tirez avec le bouton principal — le ballon part tout droit vers le camp adverse
 - Le ballon doit passer par le trou du mur ET éviter le gardien adverse pour marquer
 - Les ballons se télescopent s'ils se croisent sur la même case
-- Tempo unique (balle, mur, joueur) : accélère de 500ms à 150ms sur 60 secondes
-- Chrono sur les 7 segments (format SS.BB : secondes restantes + buts marqués)
+- Tempo unique (balle, mur) : accélère de 500ms à 100ms sur 120 secondes. Joueurs 1.5x plus rapides.
+- Chrono 120s affiché sur les 7 segments (format SS.BB : secondes restantes + buts marqués)
 - Verrou de départ (LED jaune à la place du ballon)
 - Highscore = total des buts des deux joueurs (sauvegardé en NVS)
 - En cas d'égalité : celui qui a marqué le premier gagne

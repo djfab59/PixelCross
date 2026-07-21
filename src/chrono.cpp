@@ -85,6 +85,7 @@ const int DUREE_CLIGNO_VERROU = 150;
 // --- TIMER POUR AFFICHAGE RESULTAT ---
 static unsigned long timerResultat = 0;
 static int derniereSecondeAffichee = -1; // Pour eviter de rafraichir les 7 segments a chaque frame
+static bool interruptionsAttachees = false; // Pour attacher les ISR apres relachement des boutons
 
 // --- HIGHSCORES ---
 static void chargerHighscores() {
@@ -162,6 +163,7 @@ static void initSet() {
   verrouRouge = modeSolo ? false : true; // En solo pas de verrou rouge
   alerteVerrouActive = false;
   derniereSecondeAffichee = -1;
+  interruptionsAttachees = false;
   prevBtnVert = digitalRead(BTN_GREEN_PIN);
   prevBtnRouge = digitalRead(BTN_RED_PIN);
   chronoState = CHRONO_ATTENTE;
@@ -260,10 +262,6 @@ static void loopAttente() {
     if (verrouVert && clicVert) {
       verrouVert = false;
       declencherBip(1000, 50);
-      // Active l'interruption pour capturer le temps exact
-      isrVertDeclenche = false;
-      isrRougeDeclenche = false;
-      attachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN), isrBoutonVert, FALLING);
       chronoDepart = millis();
       chronoState = CHRONO_COMPTE;
       return;
@@ -281,11 +279,6 @@ static void loopAttente() {
     // Des que les deux sont deverrouilles, le chrono demarre automatiquement
     if (!verrouVert && !verrouRouge) {
       declencherBip(1000, 50);
-      // Active les interruptions pour capturer le temps exact de chaque joueur
-      isrVertDeclenche = false;
-      isrRougeDeclenche = false;
-      attachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN), isrBoutonVert, FALLING);
-      attachInterrupt(digitalPinToInterrupt(BTN_RED_PIN), isrBoutonRouge, FALLING);
       chronoDepart = millis();
       chronoState = CHRONO_COMPTE;
       return;
@@ -307,9 +300,24 @@ static void loopAttente() {
 }
 
 // --- BOUCLE CHRONO VISIBLE (5 premieres secondes) ---
+
 static void loopCompte() {
   unsigned long elapsed = millis() - chronoDepart;
   int secondes = elapsed / 1000;
+
+  // Attache les interruptions uniquement quand les boutons sont relaches
+  // pour eviter un declenchement parasite du au clic de deverrouillage
+  if (!interruptionsAttachees) {
+    bool btnVertRelache = (digitalRead(BTN_GREEN_PIN) == HIGH);
+    bool btnRougeRelache = modeSolo || (digitalRead(BTN_RED_PIN) == HIGH);
+    if (btnVertRelache && btnRougeRelache) {
+      isrVertDeclenche = false;
+      isrRougeDeclenche = false;
+      attachInterrupt(digitalPinToInterrupt(BTN_GREEN_PIN), isrBoutonVert, FALLING);
+      if (!modeSolo) attachInterrupt(digitalPinToInterrupt(BTN_RED_PIN), isrBoutonRouge, FALLING);
+      interruptionsAttachees = true;
+    }
+  }
 
   // Gestion du retour
   bool btnG1 = (digitalRead(BTN_GREEN1_PIN) == LOW);

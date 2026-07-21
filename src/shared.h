@@ -2,7 +2,7 @@
 #define SHARED_H
 
 // Version actuelle du firmware au format "major.minor"
-#define FIRMWARE_VERSION "0.6"
+#define FIRMWARE_VERSION "0.7"
 
 #include <Arduino.h>
 #include <FastLED.h>
