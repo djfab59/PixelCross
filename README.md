@@ -4,7 +4,7 @@ PixelCross est une console de jeux rétro jouable sur une matrice de LEDs WS2812
 
 ## ✨ Fonctionnalités
 
-- **Multi-jeux** : Pong 1D (Solo/Duo), Chrono (Solo/Duo) et Goal (Duo), avec un système de menu et sous-menus.
+- **Multi-jeux** : Pong 1D (Solo/Duo), Chrono (Solo/Duo), Goal (Solo/Duo) et Snake (Solo/Duo), avec un système de menu et sous-menus.
 - **Écran d'accueil** : Animation "PXLCROSS" qui descend avec changement de couleur et mélodie au démarrage.
 - **Highscores** : Sauvegardés en mémoire NVS, affichés sur les 7 segments dans les sous-menus.
 - **Mises à jour OTA** : Le firmware peut être mis à jour sans fil via WiFi directement depuis les "releases" du dépôt GitHub.
@@ -82,6 +82,39 @@ Football 2D avec un mur mobile au centre. Marquez plus de buts que l'adversaire 
 - Verrou de départ (LED jaune à la place du ballon)
 - Highscore = total des buts des deux joueurs (sauvegardé en NVS)
 - En cas d'égalité : celui qui a marqué le premier gagne
+
+### 🐍 SNAKE (Solo & Duo)
+
+Snake 2D classique sur la matrice 32x8 (256 cases). Mangez des pommes, évitez les queues.
+
+**Terrain :**
+- Toute la matrice 32x8 est le terrain de jeu
+- Téléportation : traverser un bord fait apparaître de l'autre côté
+- Le vert commence en haut à gauche (direction droite)
+- Le rouge commence en bas à droite (direction gauche)
+
+**Mécaniques :**
+- Serpent de 4 LEDs au départ, grandit de 1 à chaque pomme mangée
+- Tête plus lumineuse, corps plus clair
+- Tourner à gauche (G1/R1) ou à droite (G2/R2)
+- Vitesse fixe : 2 cases/seconde
+- Pomme jaune, apparaît aléatoirement sur une case libre
+- Collision (queue propre, queue adverse, ou case occupée après téléportation) = perte de vie + freeze 2s + clignotement
+- Après le freeze : reprise automatique vers une direction libre
+- Si aucune direction libre : mort immédiate
+- Collision tête-à-tête (DUO) : les deux perdent une vie
+- Les deux sur la pomme en même temps : personne ne gagne, la pomme se déplace
+
+**Mode SOLO :**
+- 3 vies, highscore = score quand les 3 vies sont perdues
+
+**Mode DUO :**
+- 3 vies chacun. Quand un joueur meurt, son serpent reste en bleu (obstacle)
+- Le survivant continue seul jusqu'à perdre ses 3 vies
+- Highscore = total des scores des deux joueurs
+- Plus de place pour la pomme = le survivant gagne
+
+**Affichage 7 segments :** format V.SSS (1 digit vies + point + 3 digits score)
 
 ---
 

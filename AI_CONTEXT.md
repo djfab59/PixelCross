@@ -24,8 +24,8 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Gestion WiFi** : La bibliothèque `tzapu/WiFiManager` est utilisée pour créer un portail de configuration captif.
 - **Mises à jour OTA** : Le système peut se mettre à jour via WiFi en interrogeant l'API GitHub pour la "dernière release". Il télécharge le binaire, vérifie son intégrité avec une empreinte MD5, et l'installe. Le script `post_build.py` peut créer automatiquement la release GitHub si un token est fourni.
 - **Version firmware** : Format string "X.Y" (comparaison numérique composant par composant). Le `version.json` contient le MD5 indexé par plateforme (`md5["esp32-c3-devkitm-1"]`).
-- **Machine d'états** : `enum AppState` dans `shared.h` : `STATE_MENU`, `STATE_PONG`, `STATE_CHRONO`, `STATE_GOAL`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
-- **Menu principal** : PONG, CHRONO, GOAL, REGLAGES.
+- **Machine d'états** : `enum AppState` dans `shared.h` : `STATE_MENU`, `STATE_PONG`, `STATE_CHRONO`, `STATE_GOAL`, `STATE_SNAKE`, `STATE_SETTINGS`, `STATE_TEST`, `STATE_WIFI_CONFIG`, `STATE_OTA_UPDATE`.
+- **Menu principal** : PONG, CHRONO, GOAL, SNAKE, REGLAGES.
 - **Sous-menu Réglages** : LIGHT, TEST, UPDATE, WIFI.
 
 ## Organisation du Code
@@ -36,7 +36,8 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **`game.h/cpp`** : Code partagé entre les jeux (animations set gagnant, nouveau record, fanfare, verrou, vies).
 - **`pong.h/cpp`** : Jeu Pong avec sous-menu SOLO/DUO, bot IA, compteur d'échanges, highscores.
 - **`chrono.h/cpp`** : Jeu Chrono avec sous-menu SOLO/DUO, système de verrous, highscores.
-- **`goal.h/cpp`** : Jeu Goal (football 2D, chrono 60s, mur mobile, highscore).
+- **`goal.h/cpp`** : Jeu Goal (football 2D, chrono 120s, mur mobile, highscore).
+- **`snake.h/cpp`** : Jeu Snake (2D sur matrice 32x8, téléportation, SOLO/DUO, highscore).
 - **`settings.h/cpp`** : Menu réglages (luminosité, test, OTA, WiFi).
 - **`test.h/cpp`** : Mode test hardware.
 - **`main.cpp`** : Setup, loop, menu principal, écran d'accueil.
@@ -86,6 +87,20 @@ Ce fichier sert de référence pour les assistants IA travaillant sur ce projet 
 - **Score** : Chrono 120s affiché sur 7 segments (format SS.BB). Highscore solo = max buts vert. Highscore duo = total buts des deux joueurs.
 - **Fin de partie** : Celui avec le plus de buts gagne. Égalité = premier buteur gagne.
 - **Verrou** : LED jaune à la place du ballon. Les deux joueurs doivent déverrouiller pour démarrer.
+
+## Mécaniques de jeu Snake
+- **Terrain** : Matrice 32x8 complete (256 cases). Teleportation aux bords.
+- **Serpent** : Debut 4 LEDs. Tete lumineuse, corps plus clair. Bleu quand mort.
+- **Controles** : G1/R1 = tourner gauche, G2/R2 = tourner droite. Avance automatiquement.
+- **Vitesse** : Fixe, 2 cases/seconde (500ms par tick).
+- **Pomme** : Jaune, apparait sur case libre. Mange = +1 point, +1 longueur.
+- **Collision** : Queue propre, queue adverse, ou case occupee apres teleportation = perte de vie.
+- **Freeze** : 2 secondes apres collision, clignotement. Reprise automatique vers direction libre.
+- **Mode SOLO** : 3 vies. Highscore = score a la mort.
+- **Mode DUO** : 3 vies chacun. Mort = serpent bleu (obstacle permanent). Survivant continue.
+- **Highscore DUO** : Total des scores des deux joueurs.
+- **Fin** : Plus de place pour pomme = survivant gagne. Deux morts = comparaison scores.
+- **7 segments** : Format V.SSS (vies + score). Highscore dans sous-menu au format SSSS.
 
 ## Idées et Améliorations futures
 - Ajout d'autres jeux (Simon, Reaction, Runner...).

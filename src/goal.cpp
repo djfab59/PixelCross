@@ -48,7 +48,7 @@ static const unsigned long DUREE_PARTIE = 120000; // 120 secondes
 
 // --- TEMPO ---
 static unsigned long tempoBase = 500;
-static const unsigned long tempoMin = 100; // Plus rapide en fin de partie pour mieux sentir l'acceleration
+static const unsigned long tempoMin = 50; // Plus rapide en fin de partie pour mieux sentir l'acceleration
 static unsigned long dernierTickMur = 0;
 static unsigned long dernierTickBalle = 0;
 static unsigned long dernierTickJoueur = 0;
