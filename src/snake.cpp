@@ -260,9 +260,9 @@ void initSnake() {
 }
 
 static void initPartie() {
-  initSerpent(vert, 1, 1, 1, 0); // Haut gauche, direction droite
+  initSerpent(vert, 4, 1, 1, 0); // Haut gauche, direction droite (queue en 1,2,3 tete en 4)
   if (!modeSolo) {
-    initSerpent(rouge, 32, 8, -1, 0); // Bas droite, direction gauche
+    initSerpent(rouge, 29, 8, -1, 0); // Bas droite, direction gauche (queue en 32,31,30 tete en 29)
   } else {
     rouge.longueur = 0;
     rouge.mort = true;
@@ -543,12 +543,12 @@ static void loopPlaying() {
   prevBtnR2 = actR2;
 
   // Stocker la derniere demande de virage (appliquee au prochain tick uniquement)
-  if (!vert.mort && !vert.freeze) {
+  // Fonctionne aussi pendant le freeze pour choisir la direction de reprise
+  if (!vert.mort) {
     if (clicG1) vert.prochainVirage = -1; // Gauche
     if (clicG2) vert.prochainVirage = 1;  // Droite
   }
-  // Tourner le rouge
-  if (!modeSolo && !rouge.mort && !rouge.freeze) {
+  if (!modeSolo && !rouge.mort) {
     if (clicR1) rouge.prochainVirage = -1;
     if (clicR2) rouge.prochainVirage = 1;
   }
@@ -556,18 +556,29 @@ static void loopPlaying() {
   // --- GESTION DU FREEZE ---
   if (vert.freeze && now - vert.freezeDebut >= FREEZE_DUREE) {
     vert.freeze = false;
-    if (!trouverDirectionLibre(vert)) {
-      // Pas de direction libre -> mort
-      vert.vies = 0;
-      vert.mort = true;
+    // Si le joueur a choisi une direction pendant le freeze, on l'applique
+    if (vert.prochainVirage == -1) tournerGauche(vert);
+    else if (vert.prochainVirage == 1) tournerDroite(vert);
+    else {
+      // Pas de choix du joueur : direction automatique
+      if (!trouverDirectionLibre(vert)) {
+        vert.vies = 0;
+        vert.mort = true;
+      }
     }
+    vert.prochainVirage = 0;
   }
   if (!modeSolo && rouge.freeze && now - rouge.freezeDebut >= FREEZE_DUREE) {
     rouge.freeze = false;
-    if (!trouverDirectionLibre(rouge)) {
-      rouge.vies = 0;
-      rouge.mort = true;
+    if (rouge.prochainVirage == -1) tournerGauche(rouge);
+    else if (rouge.prochainVirage == 1) tournerDroite(rouge);
+    else {
+      if (!trouverDirectionLibre(rouge)) {
+        rouge.vies = 0;
+        rouge.mort = true;
+      }
     }
+    rouge.prochainVirage = 0;
   }
 
   // --- TICK DE DEPLACEMENT ---
